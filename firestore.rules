@@ -11,93 +11,108 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
     function isAdmin() {
       return isAuthenticated() && (
-        getUserData().role == 'admin' ||
-        request.auth.token.role == 'admin'
+        request.auth.token.email == 'admin@maideasy.in' ||
+        request.auth.token.email == 'admin@maidbookingapp.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
-    }
-
-    function isMaid() {
-      return isAuthenticated() && getUserData().role == 'maid';
-    }
-
-    function isCustomer() {
-      return isAuthenticated() && getUserData().role == 'customer';
     }
 
     // 1. Users collection
     match /users/{userId} {
+      // Authenticated users can read all user profiles (needed for booking info display)
       allow read: if isAuthenticated();
+      // Allow newly authenticated user to create THEIR OWN profile doc only.
       allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isOwner(userId) || isAdmin();
-      allow delete: if isAdmin();
+      // User can update their own profile, but cannot elevate role unless admin
+      allow update: if isAdmin() || (
+        isOwner(userId) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) || request.resource.data.role == resource.data.role)
+      );
+      // User can delete their own account or admin can delete
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
     // 2. Customers collection
     match /customers/{customerId} {
       allow read: if isAuthenticated();
-      allow write: if isOwner(customerId) || isAdmin();
+      allow create: if isAuthenticated() && request.auth.uid == customerId;
+      allow update: if isOwner(customerId) || isAdmin();
+      allow delete: if isOwner(customerId) || isAdmin();
     }
 
     // 3. Maids collection
     match /maids/{maidId} {
-      // Public / Customer can read approved active maids
+      // Approved maids are publicly visible for browsing; full access for maid owner or admin
       allow read: if true;
       
-      // Maid can register their own record
-      allow create: if isAuthenticated() && request.resource.data.approvalStatus == 'under_review';
+      // Maid can register their own record with status under_review
+      allow create: if isAuthenticated() && (
+        request.resource.data.approvalStatus == 'under_review' || isAdmin()
+      );
       
-      // Maid can update non-security fields (bio, pricing, availability)
+      // Maid can update non-security fields (bio, pricing, availability), but cannot self-approve
       allow update: if isAdmin() || (
-        isAuthenticated() && resource.data.userId == request.auth.uid &&
+        isAuthenticated() && (resource.data.userId == request.auth.uid || isOwner(maidId)) &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['approvalStatus', 'verificationStatus', 'selfieStatus', 'aadhaarMasked'])
       );
       
-      // Only Admin can delete or change approval/verification status
-      allow delete: if isAdmin();
+      // Maid owner or Admin can delete
+      allow delete: if isAdmin() || (isAuthenticated() && (resource.data.userId == request.auth.uid || isOwner(maidId)));
     }
 
     // 4. Bookings collection
     match /bookings/{bookingId} {
+      // Only involved parties (customer, maid) or admin can read bookings
       allow read: if isAuthenticated() && (
+        isAdmin() ||
         resource.data.customerId == request.auth.uid ||
         resource.data.maidId == request.auth.uid ||
-        isAdmin()
+        resource.data.maidId == ('maid-' + request.auth.uid)
       );
-      allow create: if isAuthenticated() && request.resource.data.customerId == request.auth.uid;
+      allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (
+        isAdmin() ||
         resource.data.customerId == request.auth.uid ||
         resource.data.maidId == request.auth.uid ||
-        isAdmin()
+        resource.data.maidId == ('maid-' + request.auth.uid)
       );
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || (isAuthenticated() && (resource.data.customerId == request.auth.uid || resource.data.maidId == request.auth.uid));
     }
 
     // 5. Payments collection
     match /payments/{paymentId} {
-      allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid || isAdmin()
-      );
+      allow read: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid);
       allow create: if isAuthenticated();
-      allow update, delete: if isAdmin();
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
 
     // 6. Notifications collection
     match /notifications/{notifId} {
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      allow create, update: if isAuthenticated();
-      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow read: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
 
-    // 7. Settings collection
+    // 7. Settings collection — Admin write only, public read
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // 8. Service Categories collection — Admin write only, public read
+    match /service_categories/{serviceId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 9. Reviews collection
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.customerId == request.auth.uid);
     }
   }
 }

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useApp } from '@/lib/app-context';
+import { useAuth } from '@/lib/auth-context';
 import { MaidRegistrationForm } from '@/lib/types';
 import { SelfieCapture } from '@/components/maid/SelfieCapture';
 import { SUPPORTED_CITIES, SUPPORTED_AREAS, SERVICE_CATEGORIES } from '@/lib/mockData';
@@ -11,6 +12,7 @@ import {
   User, Eye, EyeOff, Loader, Lock, AlertTriangle, Lightbulb, FileText, Wrench, Wallet, MapPin
 } from 'lucide-react';
 import Link from 'next/link';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 
 const STEPS = [
   { label: 'Personal', Icon: User },
@@ -35,6 +37,7 @@ const INITIAL_FORM: MaidRegistrationForm = {
 };
 
 export default function MaidRegisterPage() {
+  const { user } = useAuth();
   const { showToast } = useApp();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<MaidRegistrationForm>(INITIAL_FORM);
@@ -43,6 +46,22 @@ export default function MaidRegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAadhaar, setShowAadhaar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Pre-fill fields if user is already logged in
+  useEffect(() => {
+    if (user) {
+      setForm(prev => ({
+        ...prev,
+        name: prev.name || user.name || '',
+        phone: prev.phone || user.phone || '',
+        email: prev.email || user.email || '',
+        city: prev.city || user.city || user.location || 'Bhilai',
+        location: prev.location || user.location || 'Bhilai',
+        area: prev.area || user.area || '',
+        address: prev.address || user.address || '',
+      }));
+    }
+  }, [user]);
 
   const update = <K extends keyof MaidRegistrationForm>(key: K, value: MaidRegistrationForm[K]) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -122,7 +141,8 @@ export default function MaidRegisterPage() {
     setIsSubmitting(true);
     try {
       const { submitMaidRegistration } = await import('@/lib/services/maidService');
-      const res = await submitMaidRegistration(form, `user-m-${Date.now()}`);
+      const userId = user?.id || '';
+      const res = await submitMaidRegistration(form, userId);
       if (res.success) {
         setSubmitted(true);
         showToast('success', 'Profile submitted!', 'Your registration is under review.');
@@ -180,15 +200,18 @@ export default function MaidRegisterPage() {
           ) : (
             <Link href="/"><button className="btn btn-ghost btn-icon"><ArrowLeft size={20} /></button></Link>
           )}
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: '16px' }}>Maid Registration</div>
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {(() => {
-                const Icon = STEPS[step].Icon;
-                return <Icon size={14} style={{ color: 'var(--primary-600)' }} />;
-              })()}
-              <span>{STEPS[step].label}</span>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '16px' }}>Maid Registration</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                {(() => {
+                  const Icon = STEPS[step].Icon;
+                  return <Icon size={14} style={{ color: 'var(--primary-600)' }} />;
+                })()}
+                <span>{STEPS[step].label}</span>
+              </div>
             </div>
+            <BrandLogo size="sm" />
           </div>
           <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>{step + 1}/{STEPS.length}</span>
         </div>

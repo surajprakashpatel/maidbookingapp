@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
-import { fetchAllCustomers } from '@/lib/services/userService';
+import { subscribeToAllCustomers } from '@/lib/services/userService';
 import { Customer } from '@/lib/types';
-import { MOCK_CUSTOMERS } from '@/lib/mockData';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle } from 'lucide-react';
@@ -16,13 +15,12 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const list = await fetchAllCustomers();
-      setCustomers(list.length > 0 ? list : MOCK_CUSTOMERS);
+    setLoading(true);
+    const unsub = subscribeToAllCustomers((liveCustomers) => {
+      setCustomers(liveCustomers);
       setLoading(false);
-    }
-    load();
+    });
+    return () => unsub();
   }, []);
 
   const columns: Column<Customer>[] = [

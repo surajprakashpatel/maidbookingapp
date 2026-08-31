@@ -1,9 +1,11 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { getInitials } from '@/lib/utils';
+import { fetchCustomerBookings } from '@/lib/services/bookingService';
 import {
   CalendarDays, Heart, Bell, CreditCard,
   HelpCircle, Settings, FileText, Shield,
@@ -12,12 +14,12 @@ import {
 
 const MENU_ITEMS = [
   { icon: CalendarDays, label: 'My Bookings', href: '/bookings', color: 'var(--primary-500)' },
-  { icon: Heart, label: 'Saved Maids', href: '#', color: 'var(--error-500)' },
+  { icon: Heart, label: 'Find & Save Maids', href: '/search', color: 'var(--error-500)' },
   { icon: Bell, label: 'Notifications', href: '/notifications', color: 'var(--accent-500)' },
-  { icon: CreditCard, label: 'Payment History', href: '#', color: 'var(--success-500)' },
+  { icon: CreditCard, label: 'Payment & Bookings Log', href: '/bookings', color: 'var(--success-500)' },
   null,
-  { icon: Settings, label: 'Settings', href: '/settings', color: 'var(--gray-500)' },
-  { icon: HelpCircle, label: 'Help & Support', href: '#', color: 'var(--info-500)' },
+  { icon: Settings, label: 'Settings & Address', href: '/settings', color: 'var(--gray-500)' },
+  { icon: HelpCircle, label: 'Help & 24/7 Support', href: '/help', color: 'var(--info-500)' },
   { icon: Shield, label: 'Privacy Policy', href: '/privacy', color: 'var(--gray-500)' },
   { icon: FileText, label: 'Terms & Conditions', href: '/terms', color: 'var(--gray-500)' },
 ];
@@ -25,6 +27,20 @@ const MENU_ITEMS = [
 export default function CustomerProfilePage() {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const [stats, setStats] = useState({ total: 0, completed: 0, active: 0 });
+
+  useEffect(() => {
+    async function loadStats() {
+      if (!user) return;
+      try {
+        const bookings = await fetchCustomerBookings(user.id);
+        const completed = bookings.filter(b => b.bookingStatus === 'completed').length;
+        const active = bookings.filter(b => ['pending', 'awaiting_maid', 'confirmed', 'in_progress'].includes(b.bookingStatus)).length;
+        setStats({ total: bookings.length, completed, active });
+      } catch {}
+    }
+    loadStats();
+  }, [user]);
 
   if (!user) return null;
 
@@ -105,9 +121,9 @@ export default function CustomerProfilePage() {
         {/* Quick stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
           {[
-            { label: 'Bookings', value: '8', Icon: CalendarDays, color: 'var(--primary-500)' },
-            { label: 'Completed', value: '6', Icon: CheckCircle, color: 'var(--success-500)' },
-            { label: 'Saved', value: '3', Icon: Heart, color: 'var(--error-500)' },
+            { label: 'Bookings', value: stats.total, Icon: CalendarDays, color: 'var(--primary-500)' },
+            { label: 'Completed', value: stats.completed, Icon: CheckCircle, color: 'var(--success-500)' },
+            { label: 'Active', value: stats.active, Icon: Heart, color: 'var(--accent-500)' },
           ].map(({ label, value, Icon, color }) => (
             <div key={label} style={{ background: 'white', borderRadius: 'var(--radius-xl)', padding: '14px', textAlign: 'center', border: '1px solid var(--border-light)', boxShadow: 'var(--shadow-xs)' }}>
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '6px' }}>
@@ -129,7 +145,7 @@ export default function CustomerProfilePage() {
             return (
               <button
                 key={label}
-                onClick={() => href !== '#' && router.push(href)}
+                onClick={() => router.push(href)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',

@@ -3,12 +3,11 @@
 import { useState, useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/lib/auth-context';
-import { MOCK_MAIDS } from '@/lib/mockData';
-import { fetchMaidBookings } from '@/lib/services/bookingService';
-import { fetchMaidById } from '@/lib/services/maidService';
+import { subscribeToMaidBookings } from '@/lib/services/bookingService';
+import { subscribeToMaidById } from '@/lib/services/maidService';
 import { Booking, Maid } from '@/lib/types';
 import { formatINRCompact, getApprovalStatusLabel } from '@/lib/utils';
-import { Clock, CalendarDays, Wallet, ShieldCheck } from 'lucide-react';
+import { Clock, CalendarDays, Wallet, ShieldCheck, AlertCircle, AlertTriangle, UserCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,25 +18,52 @@ export default function MaidDashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
 
-  const [maid, setMaid] = useState<Maid>(MOCK_MAIDS[0]);
+  const [maid, setMaid] = useState<Maid | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
 
   useEffect(() => {
-    async function load() {
-      if (!user) return;
-      const [m, bList] = await Promise.all([
-        fetchMaidById(user.id),
-        fetchMaidBookings(user.id),
-      ]);
+    if (!user?.id) return;
+    const targetMaidId = user.id.startsWith('maid-') ? user.id : `maid-${user.id}`;
+
+    const unsubMaid = subscribeToMaidById(targetMaidId, (m) => {
       if (m) setMaid(m);
+    });
+
+    const unsubBookings = subscribeToMaidBookings(targetMaidId, (bList) => {
       setBookings(bList);
-    }
-    load();
-  }, [user]);
+    });
+
+    return () => {
+      unsubMaid();
+      unsubBookings();
+    };
+  }, [user?.id]);
+
+  const activeMaid: Maid = maid || {
+    id: user?.id ? (user.id.startsWith('maid-') ? user.id : `maid-${user.id}`) : 'maid',
+    userId: user?.id || 'maid',
+    name: user?.name || 'Maid Partner',
+    phone: user?.phone || '',
+    gender: 'female',
+    location: user?.location || 'Bhilai',
+    city: user?.location || 'Bhilai',
+    area: user?.area || 'Nehru Nagar',
+    services: [],
+    serviceAreas: [],
+    workRadius: 5,
+    experience: 0,
+    approvalStatus: 'under_review',
+    verificationStatus: 'not_submitted',
+    selfieStatus: 'not_captured',
+    availability: 'available',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 
   // Real calculated metrics from bookings
   const completedBookingsList = bookings.filter(b => b.bookingStatus === 'completed' && b.paymentStatus === 'paid');
-  const monthEarnings = completedBookingsList.reduce((sum, b) => sum + b.serviceAmount, 0);
+  const monthEarnings = completedBookingsList.reduce((sum, b) => sum + (b.serviceAmount || 0), 0);
 
   const newBookings = bookings.filter(b => b.bookingStatus === 'awaiting_maid').length;
   const upcoming = bookings.filter(b => b.bookingStatus === 'confirmed').length;
@@ -45,19 +71,19 @@ export default function MaidDashboardPage() {
 
   const profileCompletion = (() => {
     let score = 0;
-    if (maid.name) score += 20;
-    if (maid.profilePhoto) score += 15;
-    if (maid.bio) score += 10;
-    if (maid.services.length > 0) score += 15;
-    if (maid.serviceAreas.length > 0) score += 10;
-    if (maid.hourlyPrice || maid.dailyPrice) score += 15;
-    if (maid.verificationStatus === 'verified') score += 15;
+    if (activeMaid.name) score += 20;
+    if (activeMaid.profilePhoto) score += 15;
+    if (activeMaid.bio) score += 10;
+    if (activeMaid.services && activeMaid.services.length > 0) score += 15;
+    if (activeMaid.serviceAreas && activeMaid.serviceAreas.length > 0) score += 10;
+    if (activeMaid.hourlyPrice || activeMaid.dailyPrice) score += 15;
+    if (activeMaid.verificationStatus === 'verified') score += 15;
     return score;
   })();
 
   const badgeVariant =
-    maid.approvalStatus === 'approved' ? 'success'
-    : maid.approvalStatus === 'rejected' ? 'destructive'
+    activeMaid.approvalStatus === 'approved' ? 'success'
+    : activeMaid.approvalStatus === 'rejected' ? 'destructive'
     : 'default';
 
   return (
@@ -67,41 +93,78 @@ export default function MaidDashboardPage() {
         <Card className="border-none bg-gradient-to-br from-[var(--primary-500)] to-[var(--primary-600)] text-white p-5 rounded-2xl shadow-sm">
           <div className="flex items-center gap-3.5">
             <div className="size-14 rounded-full border-2 border-white/40 bg-white/20 flex items-center justify-center font-extrabold text-xl overflow-hidden shrink-0">
-              {maid.profilePhoto ? (
+              {activeMaid.profilePhoto ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={maid.profilePhoto} alt={maid.name} className="size-full object-cover" />
+                <img src={activeMaid.profilePhoto} alt={activeMaid.name} className="size-full object-cover" />
               ) : (
-                maid.name.charAt(0)
+                (user?.name || activeMaid.name).charAt(0)
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-extrabold text-white truncate">Hello, {user?.name || maid.name}</h1>
+              <h1 className="text-lg font-extrabold text-white truncate">Hello, {user?.name || activeMaid.name}</h1>
               <div className="flex items-center gap-2 mt-1">
                 <Badge variant={badgeVariant} className="bg-white/20 text-white border-white/30">
-                  {maid.approvalStatus === 'approved' ? <ShieldCheck className="size-3" /> : <Clock className="size-3" />}
-                  {getApprovalStatusLabel(maid.approvalStatus)}
+                  {activeMaid.approvalStatus === 'approved' ? <ShieldCheck className="size-3" /> : <Clock className="size-3" />}
+                  {getApprovalStatusLabel(activeMaid.approvalStatus)}
                 </Badge>
               </div>
             </div>
           </div>
         </Card>
 
-        {/* Profile Completion Indicator */}
-        {profileCompletion < 100 && (
+        {/* Dedicated Review State Banner */}
+        {activeMaid.approvalStatus === 'under_review' && (
+          <Card className="p-4 bg-amber-50 border-amber-200 text-amber-900 rounded-2xl">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-amber-900">Your account is under review</h3>
+                <p className="text-xs text-amber-700 leading-relaxed">
+                  Your registration details and verification documents are currently being verified by the admin team. Once approved, your profile will be published for customer bookings.
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Dedicated Rejected State Banner */}
+        {activeMaid.approvalStatus === 'rejected' && (
+          <Card className="p-4 bg-red-50 border-red-200 text-red-900 rounded-2xl">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="size-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="space-y-1.5 flex-1">
+                <h3 className="text-sm font-bold text-red-900">Application Needs Attention</h3>
+                <p className="text-xs text-red-700 leading-relaxed">
+                  {activeMaid.rejectionReason || 'Please review your verification information and update your profile to resubmit.'}
+                </p>
+                <Button
+                  size="sm"
+                  onClick={() => router.push('/maid/register')}
+                  className="bg-red-600 hover:bg-red-700 text-white text-xs h-8 font-bold"
+                >
+                  Update & Resubmit Profile
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Profile Completion Indicator (only for draft/incomplete prior to submission) */}
+        {profileCompletion < 100 && activeMaid.approvalStatus !== 'under_review' && activeMaid.approvalStatus !== 'approved' && activeMaid.approvalStatus !== 'rejected' && (
           <Card className="p-4 space-y-2">
             <div className="flex items-center justify-between text-xs font-semibold">
               <span className="text-[var(--text-primary)]">Profile Setup Progress</span>
               <span className="text-[var(--primary-600)]">{profileCompletion}%</span>
             </div>
             <Progress value={profileCompletion} />
-            {maid.verificationStatus !== 'verified' && (
+            {activeMaid.verificationStatus !== 'verified' && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => router.push('/maid/verification')}
+                onClick={() => router.push('/maid/register')}
                 className="w-full text-xs h-8 mt-1"
               >
-                Complete Identity Verification
+                Complete Registration & Verification
               </Button>
             )}
           </Card>

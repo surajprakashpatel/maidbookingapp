@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
-import { fetchAllMaidsAdmin, updateMaidApprovalStatus } from '@/lib/services/maidService';
+import { subscribeToAllMaidsAdmin, updateMaidApprovalStatus } from '@/lib/services/maidService';
 import { Maid, ApprovalStatus } from '@/lib/types';
 import { getApprovalStatusLabel } from '@/lib/utils';
 import { CheckCircle, XCircle, ChevronRight, ShieldCheck, Clock } from 'lucide-react';
@@ -26,13 +26,13 @@ export default function AdminMaidsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const list = await fetchAllMaidsAdmin(activeStatus);
-      setMaids(list);
+    setLoading(true);
+    const unsub = subscribeToAllMaidsAdmin((liveMaids) => {
+      setMaids(liveMaids);
       setLoading(false);
-    }
-    load();
+    }, activeStatus);
+
+    return () => unsub();
   }, [activeStatus]);
 
   const filtered = useMemo(() => {

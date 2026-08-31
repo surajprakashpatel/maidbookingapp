@@ -4,11 +4,10 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { Maid } from '@/lib/types';
-import { MOCK_MAIDS } from '@/lib/mockData';
 import { useAuth } from '@/lib/auth-context';
 import { useApp } from '@/lib/app-context';
 import { formatINR, generateTransactionId } from '@/lib/utils';
-import { CheckCircle, ChevronLeft, ChevronRight, Loader, Wrench, CreditCard, Smartphone, Lock } from 'lucide-react';
+import { CheckCircle, ChevronLeft, ChevronRight, Loader, Wrench, CreditCard, Smartphone, Lock, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -23,25 +22,14 @@ function BookingWizard() {
   const { user } = useAuth();
   const { showToast, selectedArea } = useApp();
 
-  const maidId = searchParams.get('maidId') ?? MOCK_MAIDS[0]?.id;
-  const [maid, setMaid] = useState<Maid>(MOCK_MAIDS.find(m => m.id === maidId) ?? MOCK_MAIDS[0]);
-
-  useEffect(() => {
-    async function load() {
-      if (maidId) {
-        const { fetchMaidById } = await import('@/lib/services/maidService');
-        const m = await fetchMaidById(maidId);
-        if (m) setMaid(m);
-      }
-    }
-    load();
-  }, [maidId]);
-
+  const maidId = searchParams.get('maidId');
+  const [maid, setMaid] = useState<Maid | null>(null);
+  const [loadingMaid, setLoadingMaid] = useState(true);
   const [step, setStep] = useState(0);
   const [processing, setProcessing] = useState(false);
   const [bookingNumber, setBookingNumber] = useState('');
 
-  const [selectedService, setSelectedService] = useState(() => maid.services[0] ?? '');
+  const [selectedService, setSelectedService] = useState('Cleaning');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('09:00');
   const [pricingType, setPricingType] = useState<'hourly' | 'daily' | 'monthly'>('hourly');
@@ -49,6 +37,24 @@ function BookingWizard() {
   const [address, setAddress] = useState(user?.address ?? '');
   const [area, setArea] = useState(user?.area ?? selectedArea);
   const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'phonepe'>('razorpay');
+
+  useEffect(() => {
+    async function load() {
+      if (maidId) {
+        setLoadingMaid(true);
+        const { fetchMaidById } = await import('@/lib/services/maidService');
+        const m = await fetchMaidById(maidId);
+        if (m) {
+          setMaid(m);
+          setSelectedService(m.services[0] ?? 'Cleaning');
+        }
+        setLoadingMaid(false);
+      } else {
+        setLoadingMaid(false);
+      }
+    }
+    load();
+  }, [maidId]);
 
   const [dateBounds] = useState(() => {
     const d = new Date();
@@ -59,6 +65,7 @@ function BookingWizard() {
   });
 
   const serviceRate = useMemo(() => {
+    if (!maid) return 150;
     if (pricingType === 'monthly') return maid.monthlyPrice ?? 18000;
     if (pricingType === 'daily') return maid.dailyPrice ?? 800;
     return maid.hourlyPrice ?? 150;
@@ -72,6 +79,36 @@ function BookingWizard() {
 
   const platformFee = Math.round(serviceAmount * 0.05);
   const totalAmount = serviceAmount + platformFee;
+
+  if (loadingMaid) {
+    return (
+      <AppShell role="customer" headerProps={{ title: 'Book Maid', showBack: true }}>
+        <div className="p-12 text-center text-sm text-[var(--text-secondary)] flex flex-col items-center justify-center gap-3">
+          <Loader className="size-6 animate-spin text-[var(--primary-600)]" />
+          <span>Loading maid profile...</span>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (!maid) {
+    return (
+      <AppShell role="customer" headerProps={{ title: 'Book Maid', showBack: true }}>
+        <div className="p-8 text-center space-y-4">
+          <div className="size-14 rounded-full bg-[var(--gray-100)] text-[var(--text-muted)] flex items-center justify-center mx-auto">
+            <AlertCircle className="size-8" />
+          </div>
+          <div className="text-base font-bold text-[var(--text-primary)]">Maid Profile Not Found</div>
+          <p className="text-xs text-[var(--text-secondary)] max-w-xs mx-auto">
+            Please select a verified maid from our directory to initiate a booking.
+          </p>
+          <Button onClick={() => router.push('/search')} className="font-bold">
+            Browse Maids
+          </Button>
+        </div>
+      </AppShell>
+    );
+  }
 
   const handleNext = () => {
     if (step === 0 && !selectedService) {
@@ -94,20 +131,26 @@ function BookingWizard() {
   };
 
   const handlePayment = async () => {
+    if (!user) {
+      showToast('error', 'Sign In Required', 'Please sign in or create an account to complete your booking.');
+      router.push(`/login?role=customer`);
+      return;
+    }
     setProcessing(true);
     try {
       const { createBooking } = await import('@/lib/services/bookingService');
       const txnId = generateTransactionId('PAY');
 
       const res = await createBooking({
-        customerId: user?.id ?? 'cust-anon',
-        customerName: user?.name ?? 'Guest User',
+        customerId: user.id,
+        customerName: user.name,
+        customerPhone: user.phone,
         customerAddress: address,
         customerArea: area,
         maidId: maid.id,
         maidName: maid.name,
         maidPhoto: maid.profilePhoto,
-        serviceId: 'srv-1',
+        serviceId: selectedService.toLowerCase().replace(/\s+/g, '_'),
         serviceName: selectedService,
         pricingType,
         duration,
