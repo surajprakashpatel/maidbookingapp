@@ -3,10 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
-import { fetchAllBookingsAdmin } from '@/lib/services/bookingService';
+import { subscribeToAllBookingsAdmin } from '@/lib/services/bookingService';
 import { Booking } from '@/lib/types';
 import { formatDate, formatINR, getBookingStatusLabel } from '@/lib/utils';
-import { MOCK_BOOKINGS } from '@/lib/mockData';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, Clock, XCircle } from 'lucide-react';
@@ -17,13 +16,12 @@ export default function AdminBookingsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const list = await fetchAllBookingsAdmin();
-      setBookings(list.length > 0 ? list : MOCK_BOOKINGS);
+    setLoading(true);
+    const unsub = subscribeToAllBookingsAdmin((liveBookings) => {
+      setBookings(liveBookings);
       setLoading(false);
-    }
-    load();
+    });
+    return () => unsub();
   }, []);
 
   const columns: Column<Booking>[] = [

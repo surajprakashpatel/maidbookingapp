@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { AppShell } from '@/components/layout/AppShell';
 import { BookingCard, BookingCardSkeleton } from '@/components/customer/BookingCard';
-import { fetchCustomerBookings } from '@/lib/services/bookingService';
+import { subscribeToCustomerBookings } from '@/lib/services/bookingService';
 import { Booking } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
-import { CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const TABS = ['Upcoming', 'Active', 'Completed', 'Cancelled'];
@@ -27,15 +27,17 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
 
   useEffect(() => {
-    async function load() {
-      if (!user) return;
-      setIsLoading(true);
-      const list = await fetchCustomerBookings(user.id);
-      setBookings(list);
+    if (!user?.id) {
       setIsLoading(false);
+      return;
     }
-    load();
-  }, [user]);
+    setIsLoading(true);
+    const unsub = subscribeToCustomerBookings(user.id, (liveBookings) => {
+      setBookings(liveBookings);
+      setIsLoading(false);
+    });
+    return () => unsub();
+  }, [user?.id]);
 
   const currentStatuses = TAB_STATUSES[TABS[activeTab] as keyof typeof TAB_STATUSES];
   const filtered = bookings.filter(b => currentStatuses.includes(b.bookingStatus));
@@ -72,14 +74,20 @@ export default function BookingsPage() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">
-              <CalendarDays size={36} style={{ color: 'var(--gray-400)' }} />
+          <div className="empty-state flex flex-col items-center justify-center p-6 text-center bg-white rounded-2xl border border-gray-100 shadow-xs space-y-3">
+            <div className="w-full max-w-[200px] flex justify-center">
+              <Image
+                src="/illustrations/empty_state_bookings.jpg"
+                alt="No Bookings"
+                width={200}
+                height={150}
+                className="w-full h-auto object-contain rounded-xl"
+              />
             </div>
-            <div className="empty-state-title">No {TABS[activeTab].toLowerCase()} bookings</div>
-            <div className="empty-state-desc">You don&apos;t have any {TABS[activeTab].toLowerCase()} service appointments.</div>
-            <Button onClick={() => router.push('/search')} className="mt-3">
-              Book a Service
+            <div className="text-base font-extrabold text-[var(--text-primary)]">No {TABS[activeTab].toLowerCase()} bookings</div>
+            <div className="text-xs text-[var(--text-secondary)] max-w-xs">You don&apos;t have any {TABS[activeTab].toLowerCase()} service appointments scheduled.</div>
+            <Button onClick={() => router.push('/search')} className="mt-2 font-bold px-6">
+              Book a Maid Service
             </Button>
           </div>
         ) : (

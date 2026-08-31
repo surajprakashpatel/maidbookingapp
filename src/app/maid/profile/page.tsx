@@ -3,26 +3,47 @@
 import { useState, useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/lib/auth-context';
-import { fetchMaidById } from '@/lib/services/maidService';
+import { subscribeToMaidById } from '@/lib/services/maidService';
 import { Maid } from '@/lib/types';
 import { formatINR } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { MapPin, ChevronRight, Edit, ShieldCheck, Bell, HelpCircle, LogOut } from 'lucide-react';
-import { MOCK_MAIDS } from '@/lib/mockData';
 
 export default function MaidProfilePage() {
   const { user, logout } = useAuth();
   const router = useRouter();
-  const [maid, setMaid] = useState<Maid>(MOCK_MAIDS[0]);
+  const [maid, setMaid] = useState<Maid | null>(null);
 
   useEffect(() => {
-    async function load() {
-      if (!user) return;
-      const m = await fetchMaidById(user.id);
+    if (!user?.id) return;
+    const targetMaidId = user.id.startsWith('maid-') ? user.id : `maid-${user.id}`;
+    const unsub = subscribeToMaidById(targetMaidId, (m) => {
       if (m) setMaid(m);
-    }
-    load();
-  }, [user]);
+    });
+    return () => unsub();
+  }, [user?.id]);
+
+  const activeMaid: Maid = maid || {
+    id: user?.id || 'maid',
+    userId: user?.id || 'maid',
+    name: user?.name || 'Maid Partner',
+    phone: user?.phone || '',
+    gender: 'female',
+    location: user?.location || 'Bhilai',
+    city: user?.location || 'Bhilai',
+    area: user?.area || 'Nehru Nagar',
+    services: [],
+    serviceAreas: [],
+    workRadius: 5,
+    experience: 0,
+    approvalStatus: 'under_review',
+    verificationStatus: 'not_submitted',
+    selfieStatus: 'not_captured',
+    availability: 'available',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 
   const handleLogout = () => {
     logout();
@@ -47,7 +68,7 @@ export default function MaidProfilePage() {
               width: 72,
               height: 72,
               borderRadius: '50%',
-              background: maid.profilePhoto ? `url(${maid.profilePhoto}) center/cover` : 'rgba(255,255,255,0.2)',
+              background: activeMaid.profilePhoto ? `url(${activeMaid.profilePhoto}) center/cover` : 'rgba(255,255,255,0.2)',
               backgroundSize: 'cover',
               border: '3px solid rgba(255,255,255,0.5)',
               display: 'flex',
@@ -56,14 +77,14 @@ export default function MaidProfilePage() {
               fontSize: '24px',
               fontWeight: 700,
             }}>
-              {!maid.profilePhoto && (maid.name ? maid.name.charAt(0) : 'M')}
+              {!activeMaid.profilePhoto && (activeMaid.name ? activeMaid.name.charAt(0) : 'M')}
             </div>
 
             <div>
-              <h1 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 4px', color: 'white' }}>{maid.name}</h1>
-              <div style={{ fontSize: '13px', opacity: 0.9 }}>{maid.phone}</div>
+              <h1 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 4px', color: 'white' }}>{activeMaid.name}</h1>
+              <div style={{ fontSize: '13px', opacity: 0.9 }}>{activeMaid.phone}</div>
               <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <MapPin size={12} /> {maid.area}, {maid.city}
+                <MapPin size={12} /> {activeMaid.area || 'Bhilai'}, {activeMaid.city || 'Bhilai'}
               </div>
             </div>
           </div>
@@ -76,19 +97,19 @@ export default function MaidProfilePage() {
             <div style={{ padding: '12px', background: 'var(--gray-50)', borderRadius: 'var(--radius-lg)', textAlign: 'center' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Per Hour</div>
               <div style={{ fontWeight: 800, fontSize: '16px', color: 'var(--primary-700)', marginTop: '2px' }}>
-                {maid.hourlyPrice ? formatINR(maid.hourlyPrice) : 'N/A'}
+                {activeMaid.hourlyPrice ? formatINR(activeMaid.hourlyPrice) : 'N/A'}
               </div>
             </div>
             <div style={{ padding: '12px', background: 'var(--gray-50)', borderRadius: 'var(--radius-lg)', textAlign: 'center' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Per Day</div>
               <div style={{ fontWeight: 800, fontSize: '16px', color: 'var(--primary-700)', marginTop: '2px' }}>
-                {maid.dailyPrice ? formatINR(maid.dailyPrice) : 'N/A'}
+                {activeMaid.dailyPrice ? formatINR(activeMaid.dailyPrice) : 'N/A'}
               </div>
             </div>
             <div style={{ padding: '12px', background: 'var(--gray-50)', borderRadius: 'var(--radius-lg)', textAlign: 'center' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Per Month</div>
               <div style={{ fontWeight: 800, fontSize: '16px', color: 'var(--primary-700)', marginTop: '2px' }}>
-                {maid.monthlyPrice ? formatINR(maid.monthlyPrice) : 'N/A'}
+                {activeMaid.monthlyPrice ? formatINR(activeMaid.monthlyPrice) : 'N/A'}
               </div>
             </div>
           </div>
@@ -100,11 +121,11 @@ export default function MaidProfilePage() {
             { label: 'Edit Profile', Icon: Edit, href: '/maid/settings', color: 'var(--primary-600)' },
             { label: 'Verification', Icon: ShieldCheck, href: '/maid/verification', color: 'var(--accent-600)' },
             { label: 'Notifications', Icon: Bell, href: '/notifications', color: 'var(--info-600)' },
-            { label: 'Help & Support', Icon: HelpCircle, href: '#', color: 'var(--gray-600)' },
+            { label: 'Help & 24/7 Support', Icon: HelpCircle, href: '/help', color: 'var(--gray-600)' },
           ].map(({ label, Icon, href, color }) => (
             <button
               key={label}
-              onClick={() => href !== '#' && router.push(href)}
+              onClick={() => router.push(href)}
               style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', padding: '15px 16px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-light)', cursor: 'pointer', textAlign: 'left' }}
             >
               <Icon size={18} style={{ color }} />

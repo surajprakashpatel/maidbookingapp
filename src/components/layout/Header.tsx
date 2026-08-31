@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useApp } from '@/lib/app-context';
 import { useAuth } from '@/lib/auth-context';
 import { getInitials } from '@/lib/utils';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 
 interface HeaderProps {
   title?: string;
@@ -47,20 +48,7 @@ export function Header({
           <ArrowLeft size={22} />
         </button>
       ) : !title ? (
-        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
-          <div style={{
-            width: 32,
-            height: 32,
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--primary-500)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <span style={{ color: 'white', fontSize: '16px' }}>✦</span>
-          </div>
-          <span style={{ fontWeight: 800, fontSize: '16px', color: 'var(--text-primary)' }}>MaidEasy</span>
-        </Link>
+        <BrandLogo size="sm" href="/" />
       ) : null}
 
       {/* Title */}

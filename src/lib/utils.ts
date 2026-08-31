@@ -249,3 +249,20 @@ export function clampText(text: string, max: number): string {
   if (text.length <= max) return text;
   return text.slice(0, max).trimEnd() + '...';
 }
+
+/**
+ * Remove all `undefined` values recursively so Firestore setDoc/updateDoc never fails
+ */
+export function cleanFirestoreData<T extends Record<string, any>>(obj: T): T {
+  const result: any = Array.isArray(obj) ? [] : {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        result[key] = cleanFirestoreData(value);
+      } else {
+        result[key] = value;
+      }
+    }
+  }
+  return result as T;
+}

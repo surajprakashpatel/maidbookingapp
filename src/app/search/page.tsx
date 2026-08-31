@@ -4,8 +4,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { MaidCard, MaidCardSkeleton } from '@/components/customer/MaidCard';
 import { useApp } from '@/lib/app-context';
-import { fetchApprovedMaids } from '@/lib/services/maidService';
-import { fetchServiceCategories } from '@/lib/services/serviceCategoryService';
+import { subscribeToApprovedMaids } from '@/lib/services/maidService';
+import { subscribeToServiceCategories } from '@/lib/services/serviceCategoryService';
 import { Maid, ServiceCategory } from '@/lib/types';
 import { SUPPORTED_AREAS } from '@/lib/mockData';
 import { Search, SlidersHorizontal, UserX, Check } from 'lucide-react';
@@ -36,17 +36,19 @@ export default function SearchPage() {
   });
 
   useEffect(() => {
-    async function load() {
-      setIsLoading(true);
-      const [maidsList, catList] = await Promise.all([
-        fetchApprovedMaids(),
-        fetchServiceCategories(),
-      ]);
-      setMaids(maidsList);
-      setCategories(catList);
+    setIsLoading(true);
+    const unsubMaids = subscribeToApprovedMaids((liveMaids) => {
+      setMaids(liveMaids);
       setIsLoading(false);
-    }
-    load();
+    });
+    const unsubCats = subscribeToServiceCategories((liveCats) => {
+      setCategories(liveCats);
+    });
+
+    return () => {
+      unsubMaids();
+      unsubCats();
+    };
   }, []);
 
   const updateFilter = (key: keyof FilterState, val: string | number) => {

@@ -38,8 +38,12 @@ export default function MaidSettingsPage() {
     load();
   }, [user]);
 
-  const handleToggleAvailability = (checked: boolean) => {
+  const handleToggleAvailability = async (checked: boolean) => {
     setAvailable(checked);
+    if (maid?.id) {
+      const { updateMaidProfile } = await import('@/lib/services/maidService');
+      await updateMaidProfile(maid.id, { availability: checked ? 'available' : 'busy' });
+    }
     showToast(
       'info',
       checked ? 'Available for Bookings' : 'Set to Busy / Off Duty',

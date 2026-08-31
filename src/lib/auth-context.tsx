@@ -1,63 +1,74 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
+  onAuthStateChanged,
+  User as FirebaseUser
+} from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db } from './firebase/config';
 import { UserRole, User } from './types';
+import { TEST_CUSTOMER, TEST_MAID } from './mockData';
+import { cleanFirestoreData } from './utils';
 
 // ============================================================
-// MOCK USERS FOR DEMO
+// DESIGNATED TEST ACCOUNTS (ONLY 2 ALLOWED FOR TESTING)
 // ============================================================
 
-const MOCK_USERS: Record<string, { user: User; password: string }> = {
+const TEST_ACCOUNTS: Record<string, User> = {
   customer: {
-    password: 'demo',
-    user: {
-      id: 'cust-1',
-      role: 'customer',
-      name: 'Rahul Gupta',
-      phone: '9876500001',
-      email: 'rahul.gupta@gmail.com',
-      photoUrl: 'https://i.pravatar.cc/300?img=11',
-      location: 'Bhilai',
-      area: 'Sector 7',
-      address: 'House No. 42, Sector 7, Bhilai',
-      status: 'active',
-      createdAt: '2024-01-10T10:00:00Z',
-    },
+    id: TEST_CUSTOMER.id,
+    role: 'customer',
+    name: TEST_CUSTOMER.name,
+    phone: TEST_CUSTOMER.phone,
+    email: TEST_CUSTOMER.email,
+    location: TEST_CUSTOMER.location,
+    city: TEST_CUSTOMER.city || 'Bhilai',
+    area: TEST_CUSTOMER.area,
+    address: TEST_CUSTOMER.address,
+    status: 'active',
+    profileCompleted: true,
+    createdAt: TEST_CUSTOMER.createdAt,
   },
   maid: {
-    password: 'demo',
-    user: {
-      id: 'user-m1',
-      role: 'maid',
-      name: 'Sunita Verma',
-      phone: '9876543210',
-      email: 'sunita.verma@gmail.com',
-      photoUrl: 'https://i.pravatar.cc/300?img=47',
-      location: 'Bhilai',
-      area: 'Nehru Nagar',
-      status: 'active',
-      createdAt: '2024-01-15T10:00:00Z',
-    },
-  },
-  admin: {
-    password: 'demo',
-    user: {
-      id: 'admin-1',
-      role: 'admin',
-      name: 'Admin User',
-      phone: '9000000001',
-      email: 'admin@maideasy.in',
-      status: 'active',
-      createdAt: '2023-01-01T10:00:00Z',
-    },
+    id: TEST_MAID.id,
+    role: 'maid',
+    name: TEST_MAID.name,
+    phone: TEST_MAID.phone,
+    email: TEST_MAID.email,
+    location: TEST_MAID.location,
+    city: TEST_MAID.city || 'Bhilai',
+    area: TEST_MAID.area,
+    address: TEST_MAID.address,
+    status: 'active',
+    profileCompleted: true,
+    createdAt: TEST_MAID.createdAt,
   },
 };
 
-const STORAGE_KEY = 'maideasy_auth_user';
+const STORAGE_KEY = 'maideasy_user_session';
 
-// ============================================================
-// AUTH CONTEXT
-// ============================================================
+export function isProfileComplete(u: Partial<User> | null | undefined): boolean {
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  if (u.profileCompleted === true) return true;
+  const hasValidName = !!u.name && u.name.trim().length >= 2 && !u.name.startsWith('User ') && u.name !== 'Google User';
+  const hasValidRole = u.role === 'customer' || u.role === 'maid';
+  const hasValidArea = !!u.area || !!u.location;
+  return hasValidName && hasValidRole && hasValidArea;
+}
+
+interface AuthResult {
+  success: boolean;
+  isNewUser?: boolean;
+  role?: UserRole;
+  error?: string;
+}
 
 interface AuthContextValue {
   user: User | null;
@@ -65,35 +76,29 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   isInitializing: boolean;
-  login: (role: UserRole, phone: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  adminLogin: (emailOrPhone: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  loginWithGoogle: (role: UserRole) => Promise<{ success: boolean; error?: string }>;
+  login: (role: UserRole, emailOrPhone: string, password?: string) => Promise<AuthResult>;
+  adminLogin: (emailOrPhone: string, password: string) => Promise<AuthResult>;
+  loginWithGoogle: (role: UserRole) => Promise<AuthResult>;
   logout: () => void;
-  signup: (role: UserRole, name: string, phone: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (role: UserRole, name: string, phone: string, password?: string, additionalData?: Partial<User>) => Promise<AuthResult>;
   updateUser: (updates: Partial<User>) => void;
-  switchRole: (role: UserRole) => void; // Demo only
+  completeProfile: (profileData: Partial<User>) => Promise<{ success: boolean; user?: User; error?: string }>;
+  switchRole: (role: UserRole) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function formatSyntheticEmail(phoneOrEmail: string): string {
+  if (phoneOrEmail.includes('@')) return phoneOrEmail.trim().toLowerCase();
+  const digits = phoneOrEmail.replace(/\D/g, '');
+  return `user_${digits}@maideasy.in`;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed && parsed.id && parsed.role) return parsed;
-      }
-    } catch {
-      // Ignore
-    }
-    return null;
-  });
-
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
 
-  // Save session state
   const saveUserSession = useCallback((u: User | null) => {
     setUser(u);
     try {
@@ -103,144 +108,374 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem(STORAGE_KEY);
       }
     } catch {
-      // Ignore localStorage errors
+      // Storage unavailable
     }
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored && mounted) {
+        const parsed = JSON.parse(stored) as User;
+        setUser(parsed);
+      }
+    } catch {
+      // Ignore parse errors
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
+      if (!mounted) return;
+      if (fbUser) {
+        try {
+          const userDocRef = doc(db, 'users', fbUser.uid);
+          const snap = await getDoc(userDocRef);
+          if (snap.exists()) {
+            const data = snap.data() as User;
+            const complete = isProfileComplete(data);
+            const verifiedUser: User = {
+              ...data,
+              id: fbUser.uid,
+              role: data.role || 'customer',
+              profileCompleted: complete,
+            };
+            saveUserSession(verifiedUser);
+          } else {
+            const isEmailAdmin = fbUser.email === 'admin@maideasy.in' || fbUser.email === 'admin@maidbookingapp.com';
+            if (isEmailAdmin) {
+              const adminUser: User = {
+                id: fbUser.uid,
+                role: 'admin',
+                name: 'Platform Administrator',
+                email: fbUser.email || 'admin@maideasy.in',
+                phone: '9000000001',
+                status: 'active',
+                profileCompleted: true,
+                createdAt: new Date().toISOString(),
+              };
+              await setDoc(userDocRef, cleanFirestoreData(adminUser), { merge: true });
+              saveUserSession(adminUser);
+            }
+          }
+        } catch (err) {
+          console.warn('Error syncing auth state from Firestore:', err);
+        }
+      } else {
+        saveUserSession(null);
+      }
+      setIsInitializing(false);
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, [saveUserSession]);
+
   const login = useCallback(async (
     role: UserRole,
-    phone: string,
-    password: string
-  ): Promise<{ success: boolean; error?: string }> => {
+    emailOrPhone: string,
+    password?: string
+  ): Promise<AuthResult> => {
     setIsLoading(true);
-    await new Promise(r => setTimeout(r, 800)); // Simulate API call
+    const email = formatSyntheticEmail(emailOrPhone);
+    const pass = password || 'Password123!';
 
-    const mockEntry = MOCK_USERS[role];
-    if (!mockEntry) {
+    try {
+      let uid: string;
+
+      try {
+        const cred = await signInWithEmailAndPassword(auth, email, pass);
+        uid = cred.user.uid;
+      } catch (authErr: unknown) {
+        const errCode = (authErr as { code?: string })?.code;
+        if (errCode === 'auth/user-not-found' || errCode === 'auth/invalid-credential') {
+          const newCred = await createUserWithEmailAndPassword(auth, email, pass);
+          uid = newCred.user.uid;
+        } else {
+          throw authErr;
+        }
+      }
+
+      const userDocRef = doc(db, 'users', uid);
+      const snap = await getDoc(userDocRef);
+
+      if (snap.exists()) {
+        const data = snap.data() as User;
+        if (isProfileComplete(data)) {
+          const completeUser: User = { ...data, profileCompleted: true };
+          saveUserSession(completeUser);
+          setIsLoading(false);
+          return { success: true, isNewUser: false, role: completeUser.role };
+        } else {
+          const pendingUser: User = { ...data, id: uid, role: data.role || role, profileCompleted: false };
+          saveUserSession(pendingUser);
+          setIsLoading(false);
+          return { success: true, isNewUser: true, role: pendingUser.role };
+        }
+      } else {
+        const pendingUser: User = {
+          id: uid,
+          role,
+          name: '',
+          phone: emailOrPhone.includes('@') ? '' : emailOrPhone,
+          email: email.includes('@maideasy.in') ? undefined : email,
+          status: 'active',
+          profileCompleted: false,
+          createdAt: new Date().toISOString(),
+        };
+        saveUserSession(pendingUser);
+        setIsLoading(false);
+        return { success: true, isNewUser: true, role };
+      }
+    } catch (err: unknown) {
+      console.error('Login error:', err);
       setIsLoading(false);
-      return { success: false, error: 'Invalid role' };
+      return { success: false, error: (err as Error)?.message || 'Invalid credentials or login failure.' };
     }
-
-    // For demo: any phone works with password "demo"
-    if (password === 'demo' || password === 'admin123' || phone === mockEntry.user.phone) {
-      saveUserSession(mockEntry.user);
-      setIsLoading(false);
-      return { success: true };
-    }
-
-    setIsLoading(false);
-    return { success: false, error: 'Invalid email or password.' };
   }, [saveUserSession]);
 
   const adminLogin = useCallback(async (
     emailOrPhone: string,
     password: string
-  ): Promise<{ success: boolean; error?: string }> => {
+  ): Promise<AuthResult> => {
     setIsLoading(true);
-    await new Promise(r => setTimeout(r, 800)); // Simulate API call
+    const email = formatSyntheticEmail(emailOrPhone);
 
-    const trimmedInput = emailOrPhone.trim().toLowerCase();
+    try {
+      let uid: string;
+      const isAuthorizedAdminEmail = email === 'admin@maideasy.in' || email === 'admin@maidbookingapp.com';
 
-    // Check if customer or maid credentials were supplied
-    const customerEntry = MOCK_USERS.customer;
-    const maidEntry = MOCK_USERS.maid;
+      try {
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        uid = cred.user.uid;
+      } catch (authErr: unknown) {
+        const errCode = (authErr as { code?: string })?.code;
+        if (errCode === 'auth/user-not-found' || errCode === 'auth/invalid-credential') {
+          if (isAuthorizedAdminEmail) {
+            const newCred = await createUserWithEmailAndPassword(auth, email, password || 'admin123');
+            uid = newCred.user.uid;
+          } else {
+            setIsLoading(false);
+            return { success: false, error: 'Invalid credentials or user not found.' };
+          }
+        } else {
+          throw authErr;
+        }
+      }
 
-    if (
-      trimmedInput === customerEntry.user.email?.toLowerCase() ||
-      trimmedInput === customerEntry.user.phone
-    ) {
+      const userDocRef = doc(db, 'users', uid);
+      const snap = await getDoc(userDocRef);
+      let adminUser: User;
+
+      if (snap.exists()) {
+        const data = snap.data() as User;
+        if (data.role !== 'admin' && !isAuthorizedAdminEmail) {
+          await signOut(auth);
+          setIsLoading(false);
+          return { success: false, error: 'Access Denied: You do not have administrator permissions.' };
+        }
+
+        adminUser = {
+          ...data,
+          id: uid,
+          role: 'admin',
+          profileCompleted: true,
+        };
+
+        if (data.role !== 'admin' && isAuthorizedAdminEmail) {
+          await setDoc(userDocRef, cleanFirestoreData(adminUser), { merge: true });
+        }
+      } else {
+        if (!isAuthorizedAdminEmail) {
+          await signOut(auth);
+          setIsLoading(false);
+          return { success: false, error: 'Access Denied: Unrecognized administrator account.' };
+        }
+        adminUser = {
+          id: uid,
+          role: 'admin',
+          name: 'Platform Administrator',
+          email,
+          phone: '9000000001',
+          status: 'active',
+          profileCompleted: true,
+          createdAt: new Date().toISOString(),
+        };
+        await setDoc(userDocRef, cleanFirestoreData(adminUser));
+      }
+
+      saveUserSession(adminUser);
       setIsLoading(false);
-      return { success: false, error: "You don't have permission to access the admin panel." };
-    }
-
-    if (
-      trimmedInput === maidEntry.user.email?.toLowerCase() ||
-      trimmedInput === maidEntry.user.phone
-    ) {
+      return { success: true, isNewUser: false, role: 'admin' };
+    } catch (err: unknown) {
+      console.error('Admin login error:', err);
       setIsLoading(false);
-      return { success: false, error: "You don't have permission to access the admin panel." };
+      return { success: false, error: (err as Error)?.message || 'Admin authentication failed.' };
     }
-
-    const adminEntry = MOCK_USERS.admin;
-
-    // Check valid admin credentials
-    const isMatchInput =
-      trimmedInput === adminEntry.user.email?.toLowerCase() ||
-      trimmedInput === adminEntry.user.phone ||
-      trimmedInput === 'admin' ||
-      trimmedInput === 'admin@maideasy.in';
-
-    const isMatchPass = password === 'demo' || password === 'admin123' || password === 'admin';
-
-    if (isMatchInput && isMatchPass) {
-      saveUserSession(adminEntry.user);
-      setIsLoading(false);
-      return { success: true };
-    }
-
-    setIsLoading(false);
-    return { success: false, error: 'Invalid email or password.' };
   }, [saveUserSession]);
 
   const loginWithGoogle = useCallback(async (
     role: UserRole
-  ): Promise<{ success: boolean; error?: string }> => {
+  ): Promise<AuthResult> => {
     setIsLoading(true);
-    await new Promise(r => setTimeout(r, 1000));
-    const mockEntry = MOCK_USERS[role];
-    if (mockEntry) {
-      const gUser = { ...mockEntry.user, name: mockEntry.user.name + ' (Google)' };
-      saveUserSession(gUser);
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const fbUser = result.user;
+
+      const userDocRef = doc(db, 'users', fbUser.uid);
+      const snap = await getDoc(userDocRef);
+
+      if (snap.exists()) {
+        const data = snap.data() as User;
+        if (isProfileComplete(data)) {
+          const completeUser: User = { ...data, profileCompleted: true };
+          saveUserSession(completeUser);
+          setIsLoading(false);
+          return { success: true, isNewUser: false, role: completeUser.role };
+        } else {
+          const pendingUser: User = { ...data, id: fbUser.uid, role: data.role || role, profileCompleted: false };
+          saveUserSession(pendingUser);
+          setIsLoading(false);
+          return { success: true, isNewUser: true, role: pendingUser.role };
+        }
+      } else {
+        const pendingUser: User = {
+          id: fbUser.uid,
+          role,
+          name: fbUser.displayName || '',
+          phone: fbUser.phoneNumber || '',
+          email: fbUser.email || undefined,
+          photoUrl: fbUser.photoURL || undefined,
+          status: 'active',
+          profileCompleted: false,
+          createdAt: new Date().toISOString(),
+        };
+        saveUserSession(pendingUser);
+        setIsLoading(false);
+        return { success: true, isNewUser: true, role };
+      }
+    } catch (err: unknown) {
+      console.error('Google login error:', err);
+      setIsLoading(false);
+      return { success: false, error: (err as Error)?.message || 'Google Sign-In failed.' };
     }
-    setIsLoading(false);
-    return { success: true };
   }, [saveUserSession]);
 
   const signup = useCallback(async (
     role: UserRole,
     name: string,
     phone: string,
-    password?: string
-  ): Promise<{ success: boolean; error?: string }> => {
-    void password;
+    password?: string,
+    additionalData?: Partial<User>
+  ): Promise<AuthResult> => {
     setIsLoading(true);
-    await new Promise(r => setTimeout(r, 800));
+    if (role === 'admin') {
+      setIsLoading(false);
+      return { success: false, error: 'Admin accounts cannot be created via public signup.' };
+    }
+    const pass = password || 'Password123!';
+    const userEmail = additionalData?.email || formatSyntheticEmail(phone);
 
-    const newUser: User = {
-      id: `new-${Date.now()}`,
-      role,
-      name,
-      phone,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, userEmail, pass);
+      const uid = cred.user.uid;
 
-    saveUserSession(newUser);
-    setIsLoading(false);
-    return { success: true };
+      const isComplete = role === 'customer'
+        ? !!(name && phone && (additionalData?.area || additionalData?.location || additionalData?.city))
+        : false;
+
+      const newUser: User = {
+        id: uid,
+        role,
+        name,
+        phone,
+        email: additionalData?.email || (userEmail.includes('@maideasy.in') ? undefined : userEmail),
+        location: additionalData?.location || additionalData?.city || 'Bhilai',
+        city: additionalData?.city || additionalData?.location || 'Bhilai',
+        area: additionalData?.area || '',
+        address: additionalData?.address || '',
+        status: 'active',
+        profileCompleted: isComplete,
+        createdAt: new Date().toISOString(),
+      };
+
+      const userDocRef = doc(db, 'users', uid);
+      await setDoc(userDocRef, cleanFirestoreData(newUser), { merge: true });
+
+      saveUserSession(newUser);
+      setIsLoading(false);
+      return { success: true, isNewUser: !isComplete, role };
+    } catch (err: unknown) {
+      console.error('Signup error:', err);
+      setIsLoading(false);
+      return { success: false, error: (err as Error)?.message || 'Sign up failed.' };
+    }
   }, [saveUserSession]);
 
+  const completeProfile = useCallback(async (
+    profileData: Partial<User>
+  ): Promise<{ success: boolean; user?: User; error?: string }> => {
+    setIsLoading(true);
+    try {
+      const currentAuthUser = auth.currentUser;
+      const targetUid = currentAuthUser?.uid || user?.id;
+
+      if (!targetUid) {
+        setIsLoading(false);
+        return { success: false, error: 'Authentication session not found. Please log in again.' };
+      }
+
+      const { completeUserProfile } = await import('./services/userService');
+      const res = await completeUserProfile({
+        ...user,
+        ...profileData,
+        id: targetUid,
+        role: (profileData.role || user?.role || 'customer') as UserRole,
+        name: profileData.name || user?.name || '',
+      });
+
+      if (res.success && res.user) {
+        const fullUser: User = {
+          ...res.user,
+          profileCompleted: true,
+        };
+        saveUserSession(fullUser);
+        setIsLoading(false);
+        return { success: true, user: fullUser };
+      } else {
+        setIsLoading(false);
+        return { success: false, error: res.error || 'Failed to complete profile.' };
+      }
+    } catch (err: unknown) {
+      console.error('Profile complete error:', err);
+      setIsLoading(false);
+      return { success: false, error: (err as Error)?.message || 'Failed to save profile.' };
+    }
+  }, [user, saveUserSession]);
+
   const logout = useCallback(() => {
+    signOut(auth).catch(() => {});
     saveUserSession(null);
   }, [saveUserSession]);
 
   const updateUser = useCallback((updates: Partial<User>) => {
     setUser(prev => {
-      const updated = prev ? { ...prev, ...updates } : null;
+      if (!prev) return null;
+      const updated = { ...prev, ...updates };
       try {
-        if (updated) localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        else localStorage.removeItem(STORAGE_KEY);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       } catch {
-        // Ignore
+        // Storage unavailable
       }
       return updated;
     });
   }, []);
 
-  // Demo helper: quickly switch between roles
   const switchRole = useCallback((role: UserRole) => {
-    const mockEntry = MOCK_USERS[role];
-    if (mockEntry) saveUserSession(mockEntry.user);
+    const testAccount = TEST_ACCOUNTS[role];
+    if (testAccount) saveUserSession(testAccount);
   }, [saveUserSession]);
 
   return (
@@ -249,13 +484,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role: user?.role ?? null,
       isAuthenticated: !!user,
       isLoading,
-      isInitializing: false,
+      isInitializing,
       login,
       adminLogin,
       loginWithGoogle,
       logout,
       signup,
       updateUser,
+      completeProfile,
       switchRole,
     }}>
       {children}

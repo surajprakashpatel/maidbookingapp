@@ -1,4 +1,4 @@
-import { doc, setDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, setDoc, getDocs, deleteDoc, collection } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Payment, PaymentGateway, PaymentStatus } from '../types';
 
@@ -35,14 +35,24 @@ export async function fetchAllPaymentsAdmin(): Promise<Payment[]> {
     const snap = await getDocs(ref);
     return snap.docs.map(d => d.data() as Payment);
   } catch (err) {
-    console.error('Error fetching payments:', err);
+    console.warn('Error fetching payments from Firestore:', err);
     return [];
+  }
+}
+
+export async function deletePaymentRecord(paymentId: string): Promise<boolean> {
+  try {
+    const docRef = doc(db, 'payments', paymentId);
+    await deleteDoc(docRef);
+    return true;
+  } catch (err) {
+    console.error('Error deleting payment record:', err);
+    return false;
   }
 }
 
 // Payment Gateway Verification Stubs (Server-Side Ready)
 export async function createRazorpayOrder(amount: number, bookingNumber: string) {
-  // In production, called via Next.js API Route (/api/payments/razorpay)
   return {
     id: `order_${Math.random().toString(36).substring(2, 12)}`,
     amount,
@@ -52,12 +62,10 @@ export async function createRazorpayOrder(amount: number, bookingNumber: string)
 }
 
 export async function verifyRazorpaySignature(paymentId: string, orderId: string, signature: string): Promise<boolean> {
-  // In production, verified server-side with RAZORPAY_KEY_SECRET HMAC SHA256
   return !!(paymentId && orderId && signature);
 }
 
 export async function createPhonePeTxn(amount: number, bookingNumber: string) {
-  // In production, called via Next.js API Route (/api/payments/phonepe)
   return {
     merchantTransactionId: `MT${Date.now()}`,
     amount,

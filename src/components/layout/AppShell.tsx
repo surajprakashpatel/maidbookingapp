@@ -40,6 +40,12 @@ export function AppShell({ children, role, headerProps = {}, hideNav = false }: 
       return;
     }
 
+    // Check if profile is complete
+    if (user && user.role !== 'admin' && user.profileCompleted === false) {
+      router.push('/profile/create');
+      return;
+    }
+
     // Role verification
     if (user && user.role !== role) {
       if (role === 'admin') {

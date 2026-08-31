@@ -1,8 +1,11 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Notification, AppSettings } from './types';
-import { MOCK_NOTIFICATIONS, DEFAULT_APP_SETTINGS } from './mockData';
+import { DEFAULT_APP_SETTINGS } from './mockData';
+import { subscribeToAppSettings, updateAppSettings as updateSettingsInFirestore } from './services/settingsService';
+import { subscribeToUserNotifications, markNotificationAsRead, sendAppNotification } from './services/notificationService';
+import { useAuth } from './auth-context';
 
 interface ToastItem {
   id: string;
@@ -32,34 +35,54 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const { user } = useAuth();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [selectedArea, setSelectedArea] = useState('Sector 7');
   const [selectedCity, setSelectedCity] = useState('Bhilai');
   const [isOnline] = useState(true);
 
+  // Real-time Settings subscription from Firestore
+  useEffect(() => {
+    const unsub = subscribeToAppSettings((liveSettings) => {
+      setSettings(liveSettings);
+    });
+    return () => unsub();
+  }, []);
+
+  // Real-time Notifications subscription from Firestore
+  useEffect(() => {
+    if (!user?.id) {
+      setNotifications([]);
+      return;
+    }
+    const unsub = subscribeToUserNotifications(user.id, (liveNotifs) => {
+      setNotifications(liveNotifs);
+    });
+    return () => unsub();
+  }, [user?.id]);
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const markRead = useCallback((id: string) => {
+    markNotificationAsRead(id).catch(() => {});
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   }, []);
 
   const markAllRead = useCallback(() => {
+    notifications.forEach(n => {
+      if (!n.read) markNotificationAsRead(n.id).catch(() => {});
+    });
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  }, []);
+  }, [notifications]);
 
   const addNotification = useCallback((n: Omit<Notification, 'id' | 'read' | 'createdAt'>) => {
-    const newN: Notification = {
-      ...n,
-      id: `notif-${Date.now()}`,
-      read: false,
-      createdAt: new Date().toISOString(),
-    };
-    setNotifications(prev => [newN, ...prev]);
+    sendAppNotification(n).catch(() => {});
   }, []);
 
   const updateSettings = useCallback((partial: Partial<AppSettings>) => {
+    updateSettingsInFirestore(partial).catch(() => {});
     setSettings(prev => ({ ...prev, ...partial }));
   }, []);
 

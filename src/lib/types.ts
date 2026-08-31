@@ -32,9 +32,11 @@ export interface User {
   email?: string;
   photoUrl?: string;
   location?: string;
+  city?: string;
   area?: string;
   address?: string;
   status: 'active' | 'suspended';
+  profileCompleted?: boolean;
   createdAt: string;
   updatedAt?: string;
   fcmToken?: string;
@@ -141,6 +143,18 @@ export interface Notification {
   read: boolean;
   createdAt: string;
   data?: Record<string, string>;
+}
+
+export interface Review {
+  id: string;
+  maidId: string;
+  customerId: string;
+  customerName: string;
+  bookingId?: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface ServiceCategory {

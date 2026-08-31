@@ -7,6 +7,7 @@ import {
   Wallet, BarChart3, Users, Settings, Shield, Bell
 } from 'lucide-react';
 import { UserRole } from '@/lib/types';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 
 interface NavItem {
   label: string;
@@ -176,23 +177,9 @@ export function Sidebar({ role, userName, userPhoto, onLogout }: SidebarProps) {
     <aside className="sidebar" role="navigation" aria-label="Sidebar navigation">
       {/* Logo */}
       <div className="sidebar-logo">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            width: 38,
-            height: 38,
-            borderRadius: 'var(--radius-lg)',
-            background: 'var(--primary-500)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            <span style={{ color: 'white', fontSize: '18px' }}>✦</span>
-          </div>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: '16px', color: 'var(--text-primary)', lineHeight: 1 }}>MaidEasy</div>
-            <div style={{ fontSize: '10px', color: roleColor, fontWeight: 600, marginTop: '2px' }}>{roleLabel}</div>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <BrandLogo size="md" href={role === 'admin' ? '/admin' : role === 'maid' ? '/maid/dashboard' : '/home'} />
+          <div style={{ fontSize: '11px', color: roleColor, fontWeight: 700, paddingLeft: '44px', marginTop: '-6px' }}>{roleLabel}</div>
         </div>
       </div>
 

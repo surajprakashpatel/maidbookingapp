@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { useApp } from '@/lib/app-context';
-import { fetchAppSettings, updateAppSettings } from '@/lib/services/settingsService';
+import { subscribeToAppSettings, updateAppSettings } from '@/lib/services/settingsService';
 import { AppSettings } from '@/lib/types';
 import { DEFAULT_APP_SETTINGS } from '@/lib/mockData';
 import { Loader, Save } from 'lucide-react';
@@ -19,13 +19,12 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const s = await fetchAppSettings();
+    setLoading(true);
+    const unsub = subscribeToAppSettings((s) => {
       setSettings(s);
       setLoading(false);
-    }
-    load();
+    });
+    return () => unsub();
   }, []);
 
   const save = async () => {
