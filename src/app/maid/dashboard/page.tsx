@@ -7,7 +7,7 @@ import { subscribeToMaidBookings } from '@/lib/services/bookingService';
 import { subscribeToMaidById } from '@/lib/services/maidService';
 import { Booking, Maid } from '@/lib/types';
 import { formatINRCompact, getApprovalStatusLabel } from '@/lib/utils';
-import { Clock, CalendarDays, Wallet, ShieldCheck, AlertCircle, AlertTriangle, UserCheck } from 'lucide-react';
+import { Clock, CalendarDays, Wallet, ShieldCheck, AlertCircle, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -94,7 +94,6 @@ export default function MaidDashboardPage() {
           <div className="flex items-center gap-3.5">
             <div className="size-14 rounded-full border-2 border-white/40 bg-white/20 flex items-center justify-center font-extrabold text-xl overflow-hidden shrink-0">
               {activeMaid.profilePhoto ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img src={activeMaid.profilePhoto} alt={activeMaid.name} className="size-full object-cover" />
               ) : (
                 (user?.name || activeMaid.name).charAt(0)

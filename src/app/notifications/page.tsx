@@ -32,7 +32,7 @@ export default function NotificationsPage() {
   }, [user]);
 
   return (
-    <AppShell role="customer" headerProps={{
+    <AppShell role={user?.role || 'customer'} headerProps={{
       title: 'Notifications',
       showBack: true,
       showNotifications: false,

@@ -73,6 +73,33 @@ export async function createBooking(
     const docRef = doc(db, 'bookings', bookingId);
     await setDoc(docRef, cleanFirestoreData(booking));
 
+    // Automated non-blocking notifications to customer & maid
+    try {
+      const { sendAppNotification } = await import('./notificationService');
+      // 1. Notify Customer
+      await sendAppNotification({
+        userId: data.customerId,
+        title: 'Booking Confirmed! 📅',
+        message: `Your booking #${bookingNumber} for ${data.serviceName} on ${data.date} with ${data.maidName} has been confirmed.`,
+        type: 'booking',
+      });
+      // 2. Notify Maid Partner
+      const maidUserIds = [data.maidId];
+      if (data.maidId.startsWith('maid-')) {
+        maidUserIds.push(data.maidId.replace('maid-', ''));
+      }
+      for (const mUid of maidUserIds) {
+        await sendAppNotification({
+          userId: mUid,
+          title: 'New Booking Request 🔔',
+          message: `New booking request from ${data.customerName} for ${data.serviceName} on ${data.date}.`,
+          type: 'booking',
+        });
+      }
+    } catch {
+      // Non-blocking notification dispatch
+    }
+
     return { success: true, bookingId, bookingNumber };
   } catch (err) {
     console.error('Error creating booking in Firestore:', err);
@@ -242,6 +269,58 @@ export async function updateBookingStatus(
       updates.paymentStatus = paymentStatus;
     }
     await updateDoc(docRef, cleanFirestoreData(updates));
+
+    // Automated non-blocking notifications on status transition
+    try {
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const b = snap.data() as Booking;
+        const { sendAppNotification } = await import('./notificationService');
+        if (bookingStatus === 'confirmed') {
+          await sendAppNotification({
+            userId: b.customerId,
+            title: 'Booking Accepted! ✅',
+            message: `${b.maidName} has accepted your booking #${b.bookingNumber} for ${b.serviceName}.`,
+            type: 'booking',
+          });
+        } else if (bookingStatus === 'rejected') {
+          await sendAppNotification({
+            userId: b.customerId,
+            title: 'Booking Request Declined',
+            message: `${b.maidName} is unavailable for booking #${b.bookingNumber}. Please choose another helper.`,
+            type: 'booking',
+          });
+        } else if (bookingStatus === 'in_progress') {
+          await sendAppNotification({
+            userId: b.customerId,
+            title: 'Service Started 🧹',
+            message: `${b.maidName} has begun work on booking #${b.bookingNumber}.`,
+            type: 'booking',
+          });
+        } else if (bookingStatus === 'completed') {
+          await sendAppNotification({
+            userId: b.customerId,
+            title: 'Service Completed! ✨',
+            message: `Your booking #${b.bookingNumber} with ${b.maidName} is marked complete. Please share your rating!`,
+            type: 'booking',
+          });
+        } else if (bookingStatus === 'cancelled') {
+          const maidIds = [b.maidId];
+          if (b.maidId.startsWith('maid-')) maidIds.push(b.maidId.replace('maid-', ''));
+          for (const mUid of maidIds) {
+            await sendAppNotification({
+              userId: mUid,
+              title: 'Booking Cancelled',
+              message: `Booking #${b.bookingNumber} for ${b.serviceName} was cancelled.`,
+              type: 'booking',
+            });
+          }
+        }
+      }
+    } catch {
+      // Non-blocking notification dispatch
+    }
+
     return true;
   } catch (err) {
     console.error('Error updating booking status in Firestore:', err);

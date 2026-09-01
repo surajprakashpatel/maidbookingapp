@@ -165,6 +165,28 @@ export interface ServiceCategory {
   description?: string;
 }
 
+export interface CityConfig {
+  id: string;
+  name: string;
+  state: string;
+  isOperational: boolean;
+  displayOrder?: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface LocalityConfig {
+  id: string;
+  cityId?: string;
+  cityName: string;
+  name: string;
+  isOperational: boolean;
+  isCustomLocality?: boolean;
+  status?: 'approved' | 'pending' | 'rejected';
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface AppSettings {
   general: {
     appName: string;

@@ -156,14 +156,18 @@ export function MaidCard({ maid, compact = false }: MaidCardProps) {
             )}
 
             {/* View profile button */}
-            <button
+            <div
               className="btn btn-secondary btn-sm btn-full"
-              style={{ marginTop: '12px' }}
-              onClick={(e) => e.preventDefault()}
-              tabIndex={-1}
+              style={{
+                marginTop: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+              }}
             >
               View Profile
-            </button>
+            </div>
           </>
         )}
       </div>

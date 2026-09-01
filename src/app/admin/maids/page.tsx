@@ -73,7 +73,6 @@ export default function AdminMaidsPage() {
         <div className="flex items-center gap-3">
           <div className="size-10 rounded-full bg-[var(--primary-100)] flex items-center justify-center font-bold text-[var(--primary-700)] shrink-0 overflow-hidden">
             {row.profilePhoto ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img src={row.profilePhoto} alt={row.name} className="size-full object-cover" />
             ) : (
               row.name.charAt(0)

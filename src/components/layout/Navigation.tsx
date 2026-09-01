@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Home, Search, CalendarDays, User, LayoutDashboard,
-  Wallet, BarChart3, Users, Settings, Shield, Bell
+  Wallet, BarChart3, Users, Settings, Shield, Bell, MapPin
 } from 'lucide-react';
 import { UserRole } from '@/lib/types';
 import { BrandLogo } from '@/components/ui/BrandLogo';
@@ -141,6 +141,7 @@ function getSidebarSections(role: UserRole): SidebarSection[] {
         { label: 'Customers', icon: Users, href: '/admin/users' },
         { label: 'Bookings', icon: CalendarDays, href: '/admin/bookings' },
         { label: 'Payments', icon: Wallet, href: '/admin/payments' },
+        { label: 'Locations', icon: MapPin, href: '/admin/locations' },
       ],
     },
     {

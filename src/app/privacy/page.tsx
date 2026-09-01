@@ -1,10 +1,12 @@
 'use client';
 
 import { AppShell } from '@/components/layout/AppShell';
+import { useAuth } from '@/lib/auth-context';
 
 export default function PrivacyPage() {
+  const { user } = useAuth();
   return (
-    <AppShell role="customer" headerProps={{ title: 'Privacy Policy', showBack: true }}>
+    <AppShell role={user?.role || 'customer'} headerProps={{ title: 'Privacy Policy', showBack: true }}>
       <div className="animate-fade-in" style={{ background: 'white', borderRadius: 'var(--radius-xl)', padding: '24px', border: '1px solid var(--border-light)' }}>
         <h1 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '16px' }}>Privacy Policy</h1>
         <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.7' }}>

@@ -8,6 +8,7 @@ import { Booking } from '@/lib/types';
 import { formatDate, formatTime, formatINR, getBookingStatusLabel, getBookingStatusClass } from '@/lib/utils';
 import { useApp } from '@/lib/app-context';
 import { CalendarDays, Clock, MapPin, Loader, AlertTriangle } from 'lucide-react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
@@ -126,8 +127,13 @@ export default function BookingDetailClient({ params }: { params: Promise<{ id: 
 
         {/* Assigned Maid */}
         <div style={{ background: 'white', borderRadius: 'var(--radius-xl)', padding: '20px', marginBottom: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>ASSIGNED MAID</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>ASSIGNED MAID</div>
+            <Link href={`/maids/${booking.maidId}`} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary-600)', textDecoration: 'none' }}>
+              View Profile →
+            </Link>
+          </div>
+          <Link href={`/maids/${booking.maidId}`} style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', color: 'inherit' }}>
             <div style={{
               width: 48,
               height: 48,
@@ -145,7 +151,7 @@ export default function BookingDetailClient({ params }: { params: Promise<{ id: 
               <div style={{ fontWeight: 800, fontSize: '15px' }}>{booking.maidName}</div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Verified Professional</div>
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* Payment Summary */}

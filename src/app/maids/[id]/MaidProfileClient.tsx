@@ -11,7 +11,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useApp } from '@/lib/app-context';
 import {
   MapPin, CheckCircle, Shield,
-  Languages, Briefcase, UserX, Calendar, Star, MessageSquare, Plus, Loader2
+  Languages, Briefcase, UserX, Calendar, Star, Plus, Loader2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -121,7 +121,6 @@ export default function MaidProfileClient({ params }: { params: Promise<{ id: st
           <div className="flex items-center gap-4">
             <div className="size-20 rounded-full border-3 border-white/40 bg-white/20 flex items-center justify-center font-bold text-2xl overflow-hidden shrink-0">
               {maid.profilePhoto ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img src={maid.profilePhoto} alt={maid.name} className="size-full object-cover" />
               ) : (
                 maid.name.charAt(0)
@@ -200,7 +199,7 @@ export default function MaidProfileClient({ params }: { params: Promise<{ id: st
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed">
-                  {maid.bio || 'Experienced verified maid with background check complete in Bhilai.'}
+                  {maid.bio || `Experienced verified maid with background check complete in ${maid.city || 'your area'}.`}
                 </p>
                 <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
                   <Languages className="size-4 text-[var(--primary-600)] shrink-0" />

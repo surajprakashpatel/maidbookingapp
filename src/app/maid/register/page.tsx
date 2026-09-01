@@ -376,7 +376,6 @@ export default function MaidRegisterPage() {
                     <span style={{ fontWeight: 600, color: 'var(--success-700)' }}>Live selfie captured successfully</span>
                   </div>
                   <div style={{ position: 'relative', display: 'inline-block' }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={form.selfieDataUrl} alt="Verification selfie" style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--success-500)' }} />
                     <div style={{ position: 'absolute', top: 4, right: 4, background: 'var(--success-500)', borderRadius: '50%', padding: '3px', border: '2px solid white' }}>
                       <CheckCircle size={14} style={{ color: 'white', display: 'block' }} />

@@ -1,119 +1,195 @@
 'use client';
 
+import { useState, useEffect, useMemo } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
-import { formatINR, formatINRCompact } from '@/lib/utils';
-import { TrendingUp, TrendingDown, Wallet, Clock, CheckCircle, Lightbulb } from 'lucide-react';
-
-const MONTHLY_DATA = [
-  { month: 'Mar', amount: 12400 },
-  { month: 'Apr', amount: 18600 },
-  { month: 'May', amount: 15200 },
-  { month: 'Jun', amount: 21000 },
-  { month: 'Jul', amount: 19800 },
-  { month: 'Aug', amount: 24500 },
-];
-
-const TRANSACTIONS = [
-  { id: 'MB-240801', service: 'House Cleaning', customer: 'Rahul Gupta', date: '2024-08-30', amount: 570, status: 'paid' },
-  { id: 'MB-240799', service: 'Cooking', customer: 'Priya Singh', date: '2024-08-28', amount: 285, status: 'paid' },
-  { id: 'MB-240795', service: 'House Cleaning', customer: 'Amit Sharma', date: '2024-08-25', amount: 760, status: 'paid' },
-  { id: 'MB-240788', service: 'Laundry', customer: 'Neha Gupta', date: '2024-08-22', amount: 380, status: 'pending' },
-];
+import { useAuth } from '@/lib/auth-context';
+import { subscribeToMaidBookings } from '@/lib/services/bookingService';
+import { Booking } from '@/lib/types';
+import { formatINR, formatINRCompact, formatDate } from '@/lib/utils';
+import { TrendingUp, Wallet, Clock, CheckCircle, Lightbulb, Loader2 } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 
 export default function MaidEarningsPage() {
-  const maxAmount = Math.max(...MONTHLY_DATA.map(d => d.amount));
+  const { user } = useAuth();
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    setLoading(true);
+    const unsub = subscribeToMaidBookings(user.id, (liveBookings) => {
+      setBookings(liveBookings);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [user]);
+
+  // Derive live statistics
+  const stats = useMemo(() => {
+    const completedBookings = bookings.filter(b => b.bookingStatus === 'completed');
+    const pendingBookings = bookings.filter(b => ['pending', 'awaiting_maid', 'confirmed', 'in_progress'].includes(b.bookingStatus));
+
+    // Gross volume of completed jobs
+    const grossCompleted = completedBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+    // Net earnings for maid (95%)
+    const netEarnings = Math.round(grossCompleted * 0.95);
+    const platformFee = grossCompleted - netEarnings;
+
+    // Pending gross volume
+    const grossPending = pendingBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+    const netPending = Math.round(grossPending * 0.95);
+
+    // Current month earnings
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const thisMonthCompleted = completedBookings.filter(b => {
+      const d = new Date(b.date || b.createdAt);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+    const thisMonthGross = thisMonthCompleted.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+    const thisMonthNet = Math.round(thisMonthGross * 0.95);
+
+    return {
+      completedCount: completedBookings.length,
+      pendingCount: pendingBookings.length,
+      netEarnings,
+      platformFee,
+      netPending,
+      thisMonthNet,
+    };
+  }, [bookings]);
 
   return (
-    <AppShell role="maid" headerProps={{ title: 'Earnings', showNotifications: false }}>
-      <div className="animate-fade-in">
-        {/* Overview cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '20px' }}>
-          {[
-            { label: 'Total Earnings', value: formatINRCompact(145000), trend: '+12%', up: true, Icon: Wallet, color: 'var(--success-600)' },
-            { label: 'This Month', value: formatINR(24500), trend: '+₹4,200', up: true, Icon: TrendingUp, color: 'var(--primary-600)' },
-            { label: 'Pending', value: formatINR(380), trend: '1 booking', up: false, Icon: Clock, color: 'var(--accent-600)' },
-            { label: 'Completed Jobs', value: '148', trend: 'all time', up: true, Icon: CheckCircle, color: 'var(--success-600)' },
-          ].map(({ label, value, trend, up, Icon, color }) => (
-            <div key={label} className="stats-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <Icon size={22} style={{ color }} />
-                <span className={`stats-change ${up ? 'positive' : 'negative'}`}>
-                  {up ? <TrendingUp size={12} /> : <TrendingDown size={12} />} {trend}
-                </span>
-              </div>
-              <div className="stats-value" style={{ fontSize: '20px' }}>{value}</div>
-              <div className="stats-label">{label}</div>
+    <AppShell role="maid" headerProps={{ title: 'Earnings & Payouts', showNotifications: false }}>
+      <div className="animate-fade-in space-y-5 pb-8">
+        {loading ? (
+          <div className="py-16 text-center space-y-3">
+            <Loader2 className="size-8 animate-spin text-blue-600 mx-auto" />
+            <p className="text-xs font-semibold text-slate-500">Loading your real-time earnings data...</p>
+          </div>
+        ) : (
+          <>
+            {/* Overview cards */}
+            <div className="grid grid-cols-2 gap-3">
+              <Card className="p-4 border-slate-200 shadow-xs">
+                <div className="flex justify-between items-start">
+                  <div className="size-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                    <Wallet className="size-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                    95% Net
+                  </span>
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-slate-900 mt-2">
+                  {formatINR(stats.netEarnings)}
+                </div>
+                <div className="text-xs text-slate-500 font-medium">Total Net Earned</div>
+              </Card>
+
+              <Card className="p-4 border-slate-200 shadow-xs">
+                <div className="flex justify-between items-start">
+                  <div className="size-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                    <TrendingUp className="size-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
+                    This Month
+                  </span>
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-slate-900 mt-2">
+                  {formatINR(stats.thisMonthNet)}
+                </div>
+                <div className="text-xs text-slate-500 font-medium">Monthly Payout</div>
+              </Card>
+
+              <Card className="p-4 border-slate-200 shadow-xs">
+                <div className="flex justify-between items-start">
+                  <div className="size-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                    <Clock className="size-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
+                    {stats.pendingCount} active
+                  </span>
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-slate-900 mt-2">
+                  {formatINR(stats.netPending)}
+                </div>
+                <div className="text-xs text-slate-500 font-medium">Pending Release</div>
+              </Card>
+
+              <Card className="p-4 border-slate-200 shadow-xs">
+                <div className="flex justify-between items-start">
+                  <div className="size-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+                    <CheckCircle className="size-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md">
+                    Verified
+                  </span>
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-slate-900 mt-2">
+                  {stats.completedCount}
+                </div>
+                <div className="text-xs text-slate-500 font-medium">Completed Jobs</div>
+              </Card>
             </div>
-          ))}
-        </div>
 
-        {/* Bar Chart */}
-        <div style={{ background: 'white', borderRadius: 'var(--radius-xl)', padding: '20px', marginBottom: '20px', border: '1px solid var(--border-light)' }}>
-          <h2 style={{ fontSize: '15px', fontWeight: 700, margin: '0 0 20px' }}>Monthly Earnings</h2>
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end', height: '120px' }}>
-            {MONTHLY_DATA.map((d, i) => {
-              const height = (d.amount / maxAmount) * 100;
-              const isLast = i === MONTHLY_DATA.length - 1;
-              return (
-                <div key={d.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', height: '100%', justifyContent: 'flex-end' }}>
-                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: 600 }}>{formatINRCompact(d.amount)}</div>
-                  <div style={{
-                    width: '100%',
-                    height: `${height}%`,
-                    background: isLast
-                      ? 'linear-gradient(180deg, var(--primary-500), var(--primary-400))'
-                      : 'var(--gray-100)',
-                    borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0',
-                    transition: 'height 0.5s ease',
-                    minHeight: '4px',
-                  }} />
-                  <div style={{ fontSize: '11px', color: isLast ? 'var(--primary-600)' : 'var(--text-muted)', fontWeight: isLast ? 700 : 400 }}>{d.month}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+            {/* Platform fee note */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs text-slate-600 flex items-center gap-2.5">
+              <Lightbulb className="size-4 text-blue-600 shrink-0" />
+              <span>
+                Platform retains 5% service commission per booking. Payouts are credited directly after customer job completion.
+              </span>
+            </div>
 
-        {/* Platform fee note */}
-        <div style={{ background: 'var(--gray-50)', borderRadius: 'var(--radius-lg)', padding: '12px 16px', marginBottom: '20px', fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Lightbulb size={16} style={{ color: 'var(--primary-600)', flexShrink: 0 }} /> Platform charges 5% per booking. Your earnings shown are after the platform fee deduction.
-        </div>
+            {/* Real Transactions Log */}
+            <div className="space-y-3">
+              <h2 className="text-sm font-bold text-slate-900">Recent Service Payments</h2>
 
-        {/* Recent transactions */}
-        <div>
-          <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '12px' }}>Recent Payments</h2>
-          <div style={{ background: 'white', borderRadius: 'var(--radius-xl)', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
-            {TRANSACTIONS.map((txn, i) => (
-              <div key={txn.id} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '14px 16px',
-                borderBottom: i < TRANSACTIONS.length - 1 ? '1px solid var(--border-light)' : 'none',
-              }}>
-                <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-lg)', background: txn.status === 'paid' ? 'var(--success-50)' : 'var(--accent-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {txn.status === 'paid' ? <CheckCircle size={18} style={{ color: 'var(--success-600)' }} /> : <Clock size={18} style={{ color: 'var(--accent-600)' }} />}
+              {bookings.length === 0 ? (
+                <div className="py-10 text-center bg-white rounded-2xl border border-slate-200 p-6 space-y-2">
+                  <Wallet className="size-10 text-slate-300 mx-auto" />
+                  <p className="text-xs font-bold text-slate-700">No bookings recorded yet</p>
+                  <p className="text-[11px] text-slate-400">Your completed jobs and payments will appear here in real time.</p>
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>{txn.service}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{txn.customer} • {txn.date}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>#{txn.id}</div>
-                </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: '15px', color: txn.status === 'paid' ? 'var(--success-600)' : 'var(--accent-600)' }}>
-                    +{formatINR(txn.amount)}
-                  </div>
-                  <div style={{ fontSize: '10px', color: txn.status === 'paid' ? 'var(--success-500)' : 'var(--accent-500)', fontWeight: 600 }}>
-                    {txn.status === 'paid' ? 'Received' : 'Pending'}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+              ) : (
+                <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-xs divide-y divide-slate-100">
+                  {bookings.map((b) => {
+                    const isCompleted = b.bookingStatus === 'completed';
+                    const netShare = Math.round(b.totalAmount * 0.95);
 
-        <div style={{ height: '24px' }} />
+                    return (
+                      <div key={b.id} className="p-4 flex items-center gap-3">
+                        <div className={`size-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${
+                          isCompleted ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                        }`}>
+                          {isCompleted ? <CheckCircle className="size-5" /> : <Clock className="size-5" />}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-sm text-slate-900 truncate">{b.serviceName}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            {b.customerName} • {formatDate(b.date || b.createdAt)}
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-400 mt-0.5">#{b.bookingNumber}</div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <div className={`font-extrabold text-sm ${isCompleted ? 'text-emerald-700' : 'text-amber-700'}`}>
+                            +{formatINR(netShare)}
+                          </div>
+                          <div className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                            {isCompleted ? 'Credited (95%)' : 'In Progress'}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </AppShell>
   );
 }
+

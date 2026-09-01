@@ -8,10 +8,9 @@ import { useApp } from '@/lib/app-context';
 import { subscribeToApprovedMaids } from '@/lib/services/maidService';
 import { subscribeToServiceCategories } from '@/lib/services/serviceCategoryService';
 import { Maid, ServiceCategory } from '@/lib/types';
-import { SUPPORTED_AREAS } from '@/lib/mockData';
 import { Search, MapPin, ChevronDown, Sparkles, ChefHat, Baby, HeartPulse, Home as HomeIcon, Shirt, Sun, Clock } from 'lucide-react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
+import { LocationSelectorModal } from '@/components/location/LocationSelectorModal';
 
 function renderCategoryIcon(name: string) {
   const n = name.toLowerCase();
@@ -27,7 +26,7 @@ function renderCategoryIcon(name: string) {
 
 export default function CustomerHomePage() {
   const router = useRouter();
-  const { selectedArea, selectedCity, setSelectedArea } = useApp();
+  const { selectedArea, selectedCity } = useApp();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showAreaPicker, setShowAreaPicker] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -169,39 +168,11 @@ export default function CustomerHomePage() {
           )}
         </div>
 
-        {/* Location Picker Sheet (Drawer) */}
-        <Sheet open={showAreaPicker} onOpenChange={setShowAreaPicker}>
-          <SheetContent side="bottom">
-            <SheetHeader>
-              <SheetTitle>Select Your Area in {selectedCity}</SheetTitle>
-              <SheetDescription>
-                Browse maids available in your neighborhood
-              </SheetDescription>
-            </SheetHeader>
-            <div className="grid grid-cols-2 gap-2 my-4">
-              {(SUPPORTED_AREAS[selectedCity] || SUPPORTED_AREAS['Bhilai'] || []).map(area => (
-                <button
-                  key={area}
-                  type="button"
-                  onClick={() => {
-                    setSelectedArea(area);
-                    setShowAreaPicker(false);
-                  }}
-                  className={`p-3 rounded-xl border text-left text-xs font-semibold transition-all cursor-pointer ${
-                    selectedArea === area
-                      ? 'border-[var(--primary-600)] bg-[var(--primary-50)] text-[var(--primary-700)]'
-                      : 'border-[var(--border)] bg-white text-[var(--text-primary)] hover:bg-[var(--gray-50)]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <MapPin className="size-3.5 shrink-0" />
-                    <span className="truncate">{area}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </SheetContent>
-        </Sheet>
+        {/* Location Selector Modal */}
+        <LocationSelectorModal
+          open={showAreaPicker}
+          onOpenChange={setShowAreaPicker}
+        />
 
         <div className="h-6" />
       </div>

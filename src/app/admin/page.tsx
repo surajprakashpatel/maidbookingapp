@@ -8,23 +8,18 @@ import { subscribeToAllCustomers } from '@/lib/services/userService';
 import { Maid, AdminStats, Booking, Customer } from '@/lib/types';
 import { INITIAL_ADMIN_STATS } from '@/lib/mockData';
 import { formatINRCompact } from '@/lib/utils';
-import { Users, Shield, CalendarDays, Wallet, AlertCircle, ChevronRight, Clock, CheckCircle } from 'lucide-react';
+import { Users, Shield, CalendarDays, Wallet, AlertCircle, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [maids, setMaids] = useState<Maid[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [stats, setStats] = useState<AdminStats>(INITIAL_ADMIN_STATS);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
     let maidsList: Maid[] = [];
     let bookingsList: Booking[] = [];
     let customersList: Customer[] = [];
@@ -45,7 +40,6 @@ export default function AdminDashboardPage() {
         bookings: { total: bookingsList.length, completed: completedBookings, pending: pendingBookings, confirmed: confirmedBookings, cancelled: cancelledBookings },
         revenue: { gross: grossVolume, platform: Math.round(grossVolume * 0.05), thisMonth: grossVolume, maidEarnings: Math.round(grossVolume * 0.95) },
       });
-      setLoading(false);
     };
 
     const unsubMaids = subscribeToAllMaidsAdmin((data) => {
@@ -56,13 +50,11 @@ export default function AdminDashboardPage() {
 
     const unsubBookings = subscribeToAllBookingsAdmin((data) => {
       bookingsList = data;
-      setBookings(data);
       recalculate();
     });
 
     const unsubCustomers = subscribeToAllCustomers((data) => {
       customersList = data;
-      setCustomers(data);
       recalculate();
     });
 

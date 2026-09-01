@@ -19,6 +19,7 @@
 /out/
 /build
 /dist
+.turbo/
 
 # misc & OS
 .DS_Store

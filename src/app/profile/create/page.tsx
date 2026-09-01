@@ -24,6 +24,7 @@ export default function ProfileCreationPage() {
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState(SUPPORTED_CITIES[0] || 'Bhilai');
   const [area, setArea] = useState('');
+  const [customArea, setCustomArea] = useState('');
   const [address, setAddress] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [photoPreview, setPhotoPreview] = useState('');
@@ -64,10 +65,12 @@ export default function ProfileCreationPage() {
   const availableAreas = SUPPORTED_AREAS[city] || SUPPORTED_AREAS['Bhilai'] || [];
 
   useEffect(() => {
-    if (availableAreas.length > 0 && (!area || !availableAreas.includes(area))) {
-      setArea(availableAreas[0]);
+    const areas = SUPPORTED_AREAS[city] || SUPPORTED_AREAS['Bhilai'] || [];
+    if (areas.length > 0 && (!area || !areas.includes(area))) {
+      setArea(areas[0]);
+      setCustomArea('');
     }
-  }, [city, availableAreas, area]);
+  }, [city, area]);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -118,13 +121,14 @@ export default function ProfileCreationPage() {
 
     setSubmitting(true);
     try {
+      const finalArea = area === '__custom__' ? customArea.trim() : area.trim();
       const res = await completeProfile({
         role: selectedRole,
         name: fullName.trim(),
         phone: phone.trim(),
         city,
         location: city,
-        area,
+        area: finalArea,
         address: address.trim(),
         photoUrl: photoUrl || undefined,
         profileCompleted: true,
@@ -233,7 +237,6 @@ export default function ProfileCreationPage() {
                   className="relative size-14 rounded-full bg-slate-200 border-2 border-dashed border-slate-300 hover:border-blue-500 flex items-center justify-center cursor-pointer overflow-hidden group shrink-0 transition-colors"
                 >
                   {photoPreview ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={photoPreview} alt="Preview" className="size-full object-cover" />
                   ) : (
                     <User className="size-6 text-slate-400 group-hover:text-blue-500" />
@@ -326,8 +329,19 @@ export default function ProfileCreationPage() {
                       {availableAreas.map(a => (
                         <option key={a} value={a}>{a}</option>
                       ))}
+                      <option value="__custom__">+ Add Your Locality...</option>
                     </select>
                   </div>
+                  {area === '__custom__' && (
+                    <input
+                      type="text"
+                      placeholder="Enter your locality name"
+                      value={customArea}
+                      onChange={e => setCustomArea(e.target.value)}
+                      className="w-full mt-2 h-10 px-3 text-xs font-medium bg-white border border-blue-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 text-slate-900 placeholder:text-slate-400"
+                    />
+                  )}
+                  {errors.area && <p className="text-[11px] font-semibold text-red-500 mt-1">{errors.area}</p>}
                 </div>
               </div>
 
