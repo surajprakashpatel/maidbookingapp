@@ -23,8 +23,8 @@ export const SUPPORTED_CITIES = ['Bhilai', 'Durg', 'Raipur', 'Bilaspur', 'Rajnan
 
 export const SUPPORTED_AREAS: Record<string, string[]> = {
   Bhilai: [
-    'Sector 1', 'Sector 2', 'Sector 4', 'Sector 6', 'Sector 7', 'Sector 9',
-    'Nehru Nagar', 'Supela', 'Smriti Nagar', 'Civic Centre', 'Junwani',
+    'Sector 1', 'Sector 2', 'Sector 4', 'Sector 6', 'Sector 7', 'Sector 9', 'Sector 10',
+    'Nehru Nagar', 'Supela', 'Smriti Nagar', 'Civic Centre', 'Junwani', 'Kohka',
     'Risali', 'Bhilai-3', 'Bhilai Nagar', 'Durg Road',
   ],
   Durg: [

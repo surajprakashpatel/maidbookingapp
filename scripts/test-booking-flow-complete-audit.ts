@@ -25,6 +25,8 @@ import {
 } from '../src/lib/services/bookingService';
 import { createReview, fetchMaidReviews } from '../src/lib/services/reviewService';
 import { fetchMaidById, updateMaidApprovalStatus } from '../src/lib/services/maidService';
+import { updateAppSettings } from '../src/lib/services/settingsService';
+import { DEFAULT_APP_SETTINGS } from '../src/lib/mockData';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyB9ZOjxtv32d5-UO86WOzE9Qweh1YAUb4M",
@@ -140,6 +142,7 @@ async function runBookingFlowAudit() {
     await createUserWithEmailAndPassword(auth, adminEmail, 'admin123');
   }
   await updateMaidApprovalStatus(maidId, 'approved');
+  await updateAppSettings(DEFAULT_APP_SETTINGS);
   assert(true, 'Approved Maid profile created and verified', `Maid ID: ${maidId}`);
 
   // --- Step 2: Create Booking & Verify Firestore Persistence ---

@@ -6,8 +6,9 @@ import { MaidCard, MaidCardSkeleton } from '@/components/customer/MaidCard';
 import { useApp } from '@/lib/app-context';
 import { subscribeToApprovedMaids } from '@/lib/services/maidService';
 import { subscribeToServiceCategories } from '@/lib/services/serviceCategoryService';
-import { Maid, ServiceCategory } from '@/lib/types';
+import { Maid, ServiceCategory, LocalityConfig } from '@/lib/types';
 import { SUPPORTED_AREAS } from '@/lib/mockData';
+import { subscribeToCityLocalities } from '@/lib/services/locationManagementService';
 import { Search, SlidersHorizontal, UserX, Check } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -21,12 +22,13 @@ interface FilterState {
 }
 
 export default function SearchPage() {
-  const { selectedArea } = useApp();
+  const { selectedCity, selectedArea } = useApp();
   const [query, setQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [maids, setMaids] = useState<Maid[]>([]);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
+  const [localities, setLocalities] = useState<LocalityConfig[]>([]);
 
   const [filters, setFilters] = useState<FilterState>({
     service: '',
@@ -34,6 +36,16 @@ export default function SearchPage() {
     gender: '',
     maxPrice: 20000,
   });
+
+  // Subscribe to operational localities for current city
+  useEffect(() => {
+    const cityName = selectedCity || 'Bhilai';
+    const unsubLocs = subscribeToCityLocalities(cityName, (liveLocs) => {
+      setLocalities(liveLocs.filter(l => l.isOperational));
+    });
+    return () => unsubLocs();
+  }, [selectedCity]);
+
 
   useEffect(() => {
     setIsLoading(true);
@@ -50,6 +62,7 @@ export default function SearchPage() {
       unsubCats();
     };
   }, []);
+
 
   const updateFilter = (key: keyof FilterState, val: string | number) => {
     setFilters(prev => ({ ...prev, [key]: val }));
@@ -233,18 +246,24 @@ export default function SearchPage() {
 
               {/* Area filter */}
               <div>
-                <label className="text-xs font-bold text-[var(--text-primary)] mb-2 block">Area / Locality</label>
+                <label className="text-xs font-bold text-[var(--text-primary)] mb-2 block">
+                  Area / Locality {selectedCity ? `(${selectedCity})` : ''}
+                </label>
                 <select
                   className="input-base text-xs sm:text-sm"
                   value={filters.area}
                   onChange={e => updateFilter('area', e.target.value)}
                 >
-                  <option value="">All Areas</option>
-                  {(SUPPORTED_AREAS['Bhilai'] || []).map(a => (
+                  <option value="">All Areas in {selectedCity || 'City'}</option>
+                  {(localities.length > 0
+                    ? localities.map(l => l.name)
+                    : (SUPPORTED_AREAS[selectedCity || 'Bhilai'] || SUPPORTED_AREAS['Bhilai'] || [])
+                  ).map(a => (
                     <option key={a} value={a}>{a}</option>
                   ))}
                 </select>
               </div>
+
             </div>
 
             <SheetFooter>

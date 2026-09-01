@@ -12,7 +12,7 @@ import { maskAadhaar, cleanFirestoreData } from '../utils';
 import { uploadDataUrl, uploadFile } from './storageService';
 
 /**
- * READ: Fetch maid by ID
+ * READ: Fetch maid by ID (supports both standard and prefixed IDs)
  */
 export async function fetchMaidById(maidId: string): Promise<Maid | null> {
   try {
@@ -20,6 +20,12 @@ export async function fetchMaidById(maidId: string): Promise<Maid | null> {
     const snap = await getDoc(docRef);
     if (snap.exists()) {
       return snap.data() as Maid;
+    }
+    const altId = maidId.startsWith('maid-') ? maidId.replace('maid-', '') : `maid-${maidId}`;
+    const altDocRef = doc(db, 'maids', altId);
+    const altSnap = await getDoc(altDocRef);
+    if (altSnap.exists()) {
+      return altSnap.data() as Maid;
     }
   } catch (err) {
     console.warn('Error fetching maid by ID from Firestore:', err);
@@ -35,11 +41,17 @@ export function subscribeToMaidById(
   callback: (maid: Maid | null) => void
 ): Unsubscribe {
   const docRef = doc(db, 'maids', maidId);
-  return onSnapshot(docRef, (snap) => {
+  return onSnapshot(docRef, async (snap) => {
     if (snap.exists()) {
       callback(snap.data() as Maid);
     } else {
-      callback(null);
+      const altId = maidId.startsWith('maid-') ? maidId.replace('maid-', '') : `maid-${maidId}`;
+      const altSnap = await getDoc(doc(db, 'maids', altId)).catch(() => null);
+      if (altSnap && altSnap.exists()) {
+        callback(altSnap.data() as Maid);
+      } else {
+        callback(null);
+      }
     }
   }, (err) => {
     console.warn('Maid subscription error:', err);
@@ -299,6 +311,34 @@ export async function updateMaidApprovalStatus(
       updates.isActive = false;
     }
     await updateDoc(docRef, cleanFirestoreData(updates));
+
+    // Non-blocking automated notification dispatch to the maid user
+    try {
+      const snap = await getDoc(docRef);
+      const mData = snap.exists() ? (snap.data() as Maid) : null;
+      const targetUserId = mData?.userId || maidId.replace('maid-', '');
+      if (targetUserId) {
+        const { sendAppNotification } = await import('./notificationService');
+        if (approvalStatus === 'approved') {
+          await sendAppNotification({
+            userId: targetUserId,
+            title: 'Profile Approved! 🎉',
+            message: 'Your maid partner application has been approved. You are now live and discoverable for customer bookings!',
+            type: 'maid',
+          });
+        } else if (approvalStatus === 'rejected') {
+          await sendAppNotification({
+            userId: targetUserId,
+            title: 'Application Update',
+            message: reason ? `Your application requires revision: ${reason}` : 'Your partner application could not be approved at this time.',
+            type: 'maid',
+          });
+        }
+      }
+    } catch {
+      // Ignore notification dispatch error
+    }
+
     return true;
   } catch (err) {
     console.error('Error updating maid approval status in Firestore:', err);

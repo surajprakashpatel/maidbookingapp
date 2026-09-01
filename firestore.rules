@@ -24,8 +24,8 @@ service cloud.firestore {
     match /users/{userId} {
       // Authenticated users can read all user profiles (needed for booking info display)
       allow read: if isAuthenticated();
-      // Allow newly authenticated user to create THEIR OWN profile doc only.
-      allow create: if isAuthenticated() && request.auth.uid == userId;
+      // Allow newly authenticated user to create THEIR OWN profile doc only or Admin can create
+      allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       // User can update their own profile, but cannot elevate role unless admin
       allow update: if isAdmin() || (
         isOwner(userId) &&
@@ -38,7 +38,7 @@ service cloud.firestore {
     // 2. Customers collection
     match /customers/{customerId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.auth.uid == customerId;
+      allow create: if isAuthenticated() && (request.auth.uid == customerId || isAdmin());
       allow update: if isOwner(customerId) || isAdmin();
       allow delete: if isOwner(customerId) || isAdmin();
     }
@@ -53,10 +53,13 @@ service cloud.firestore {
         request.resource.data.approvalStatus == 'under_review' || isAdmin()
       );
       
-      // Maid can update non-security fields (bio, pricing, availability), but cannot self-approve
+      // Maid can update non-security fields, Admin can update anything, Authenticated users can update rating aggregates
       allow update: if isAdmin() || (
         isAuthenticated() && (resource.data.userId == request.auth.uid || isOwner(maidId)) &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['approvalStatus', 'verificationStatus', 'selfieStatus', 'aadhaarMasked'])
+      ) || (
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'totalRatings'])
       );
       
       // Maid owner or Admin can delete
@@ -65,13 +68,8 @@ service cloud.firestore {
 
     // 4. Bookings collection
     match /bookings/{bookingId} {
-      // Only involved parties (customer, maid) or admin can read bookings
-      allow read: if isAuthenticated() && (
-        isAdmin() ||
-        resource.data.customerId == request.auth.uid ||
-        resource.data.maidId == request.auth.uid ||
-        resource.data.maidId == ('maid-' + request.auth.uid)
-      );
+      // Authenticated users can read bookings (for slot availability conflict checking and user/maid/admin dashboard feeds)
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (
         isAdmin() ||
@@ -113,6 +111,18 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.customerId == request.auth.uid);
+    }
+
+    // 10. Locations collection — Public read operational locations, Admin full write
+    match /locations_cities/{cityId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /locations_localities/{localityId} {
+      allow read: if true;
+      allow create: if isAuthenticated() || isAdmin();
+      allow update, delete: if isAdmin();
     }
   }
 }

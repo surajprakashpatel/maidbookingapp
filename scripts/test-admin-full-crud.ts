@@ -219,6 +219,8 @@ async function runAdminCrudAudit() {
   assert(updateSettingsRes, 'UPDATE: Admin Modifies Global Platform Fee in Firestore');
   const updatedSettings = await fetchAppSettings();
   assert(updatedSettings.pricing.platformFeePercent === newFee, 'READ: Updated Settings Verified in Firestore');
+  // Restore original settings for subsequent tests
+  await updateAppSettings(originalSettings);
 
   console.log('\n--- 5. ADMIN REVIEW MODERATION ---');
   const testReviewId = `rev-${timestamp}`;

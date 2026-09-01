@@ -21,6 +21,7 @@ export default function SignupPage() {
     email: '',
     city: SUPPORTED_CITIES[0] || 'Bhilai',
     area: (SUPPORTED_AREAS[SUPPORTED_CITIES[0]] || [])[0] || 'Sector 5',
+    customArea: '',
     address: '',
     password: '',
     confirm: ''
@@ -35,6 +36,7 @@ export default function SignupPage() {
       if (field === 'city') {
         const availableAreas = SUPPORTED_AREAS[value] || [];
         updated.area = availableAreas[0] || '';
+        updated.customArea = '';
       }
       return updated;
     });
@@ -46,8 +48,9 @@ export default function SignupPage() {
     if (!form.name.trim() || form.name.trim().length < 2) e.name = 'Enter your full name (min 2 characters)';
     if (!form.phone || !validatePhone(form.phone)) e.phone = 'Enter a valid 10-digit mobile number';
     if (form.email && !validateEmail(form.email)) e.email = 'Enter a valid email address';
-    if (!form.city) e.city = 'Select your city';
-    if (!form.area) e.area = 'Select your area / locality';
+    if (!form.city) e.city = 'Please select your city';
+    const finalArea = form.area === '__custom__' ? form.customArea.trim() : form.area.trim();
+    if (!finalArea) e.area = 'Please select or enter your locality';
     if (!form.address.trim() || form.address.trim().length < 5) e.address = 'Enter your address (min 5 characters)';
     if (!form.password || form.password.length < 6) e.password = 'Password must be at least 6 characters';
     if (form.password !== form.confirm) e.confirm = 'Passwords do not match';
@@ -58,6 +61,7 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+    const finalArea = form.area === '__custom__' ? form.customArea.trim() : form.area.trim();
     const result = await signup(
       'customer',
       form.name.trim(),
@@ -67,7 +71,7 @@ export default function SignupPage() {
         email: form.email.trim() || undefined,
         city: form.city,
         location: form.city,
-        area: form.area,
+        area: finalArea,
         address: form.address.trim(),
       }
     );
@@ -206,7 +210,7 @@ export default function SignupPage() {
 
               <div className="space-y-1.5">
                 <label htmlFor="area" className="block text-xs font-bold text-slate-700">
-                  Area <span className="text-red-500">*</span>
+                  Locality / Area <span className="text-red-500">*</span>
                 </label>
                 <select
                   id="area"
@@ -215,7 +219,18 @@ export default function SignupPage() {
                   className="w-full px-3 py-2.5 bg-slate-50/60 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
                 >
                   {currentAreas.map(a => <option key={a} value={a}>{a}</option>)}
+                  <option value="__custom__">+ Add Your Locality...</option>
                 </select>
+
+                {form.area === '__custom__' && (
+                  <input
+                    type="text"
+                    placeholder="Enter your locality name"
+                    value={form.customArea}
+                    onChange={e => update('customArea', e.target.value)}
+                    className="w-full mt-2 px-3 py-2 bg-white border border-blue-300 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                )}
                 {errors.area && <p className="text-[11px] font-semibold text-red-500 mt-1">{errors.area}</p>}
               </div>
             </div>

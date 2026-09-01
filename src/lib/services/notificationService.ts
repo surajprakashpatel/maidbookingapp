@@ -1,6 +1,6 @@
 import {
   collection, doc, getDocs, setDoc, updateDoc, deleteDoc,
-  query, where, onSnapshot, Unsubscribe
+  query, where, onSnapshot, Unsubscribe, writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Notification } from '../types';
@@ -78,6 +78,76 @@ export async function markNotificationAsRead(notifId: string): Promise<boolean> 
 }
 
 /**
+ * CREATE BATCH: Send broadcast notification to multiple target groups
+ */
+export async function broadcastNotification(
+  target: 'all' | 'customers' | 'maids',
+  title: string,
+  message: string,
+  type: Notification['type'] = 'system'
+): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    const userIds = new Set<string>();
+
+    if (target === 'all' || target === 'customers') {
+      const customersSnap = await getDocs(collection(db, 'customers'));
+      customersSnap.docs.forEach(d => userIds.add(d.id));
+      
+      const usersSnap = await getDocs(collection(db, 'users'));
+      usersSnap.docs.forEach(d => {
+        const data = d.data();
+        if (target === 'all' || data.role === 'customer') {
+          userIds.add(d.id);
+        }
+      });
+    }
+
+    if (target === 'all' || target === 'maids') {
+      const maidsSnap = await getDocs(collection(db, 'maids'));
+      maidsSnap.docs.forEach(d => userIds.add(d.id));
+    }
+
+    if (userIds.size === 0) {
+      return { success: true, count: 0 };
+    }
+
+    const idsArray = Array.from(userIds);
+    // Firestore batch supports up to 500 operations
+    const chunkSize = 400;
+    const now = new Date().toISOString();
+    let sentCount = 0;
+
+    for (let i = 0; i < idsArray.length; i += chunkSize) {
+      const batch = writeBatch(db);
+      const chunk = idsArray.slice(i, i + chunkSize);
+
+      chunk.forEach(uid => {
+        const notifId = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const notifDocRef = doc(db, 'notifications', notifId);
+        const newNotif: Notification = {
+          id: notifId,
+          userId: uid,
+          title,
+          message,
+          type,
+          read: false,
+          createdAt: now,
+        };
+        batch.set(notifDocRef, cleanFirestoreData(newNotif));
+        sentCount++;
+      });
+
+      await batch.commit();
+    }
+
+    return { success: true, count: sentCount };
+  } catch (err: unknown) {
+    console.error('Error broadcasting notification:', err);
+    return { success: false, count: 0, error: err instanceof Error ? err.message : 'Broadcast failed' };
+  }
+}
+
+/**
  * DELETE: Delete a notification from Firestore
  */
 export async function deleteNotification(notifId: string): Promise<boolean> {
@@ -90,3 +160,5 @@ export async function deleteNotification(notifId: string): Promise<boolean> {
     return false;
   }
 }
+
+

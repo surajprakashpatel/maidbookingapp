@@ -215,7 +215,6 @@ export default function AdminMaidDetailClient({ params }: { params: Promise<{ id
               </div>
               {viewSelfie && maid.selfieUrl && (
                 <div style={{ textAlign: 'center' }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={maid.selfieUrl}
                     alt={`${maid.name}'s verification selfie`}

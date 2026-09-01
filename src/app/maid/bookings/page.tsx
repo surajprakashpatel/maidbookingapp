@@ -8,7 +8,7 @@ import { formatDate, formatTime, formatINR, getBookingStatusLabel, getBookingSta
 import { useApp } from '@/lib/app-context';
 import { useAuth } from '@/lib/auth-context';
 import Link from 'next/link';
-import { CheckCircle, XCircle, Clock, CalendarDays } from 'lucide-react';
+import { CheckCircle, XCircle, CalendarDays } from 'lucide-react';
 
 const TABS: { label: string; statuses: BookingStatus[] }[] = [
   { label: 'New', statuses: ['awaiting_maid', 'pending'] },

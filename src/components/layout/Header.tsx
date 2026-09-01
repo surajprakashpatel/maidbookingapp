@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Bell, MapPin, ChevronDown, ArrowLeft, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -7,6 +8,7 @@ import { useApp } from '@/lib/app-context';
 import { useAuth } from '@/lib/auth-context';
 import { getInitials } from '@/lib/utils';
 import { BrandLogo } from '@/components/ui/BrandLogo';
+import { LocationSelectorModal } from '@/components/location/LocationSelectorModal';
 
 interface HeaderProps {
   title?: string;
@@ -30,57 +32,63 @@ export function Header({
   const router = useRouter();
   const { unreadCount, selectedCity, selectedArea } = useApp();
   const { user } = useAuth();
+  const [showLocationModal, setShowLocationModal] = useState(false);
 
   const bgStyle = variant === 'transparent'
     ? { background: 'transparent', borderBottom: 'none', boxShadow: 'none' }
     : {};
 
   return (
-    <header className="app-header" style={bgStyle}>
-      {/* Left: back or logo */}
-      {showBack ? (
-        <button
-          onClick={() => router.back()}
-          className="btn btn-ghost btn-icon"
-          aria-label="Go back"
-          style={{ marginLeft: '-8px' }}
-        >
-          <ArrowLeft size={22} />
-        </button>
-      ) : !title ? (
-        <BrandLogo size="sm" href="/" />
-      ) : null}
+    <>
+      <header className="app-header" style={bgStyle}>
+        {/* Left: back or logo */}
+        {showBack ? (
+          <button
+            onClick={() => router.back()}
+            className="btn btn-ghost btn-icon"
+            aria-label="Go back"
+            style={{ marginLeft: '-8px' }}
+          >
+            <ArrowLeft size={22} />
+          </button>
+        ) : !title ? (
+          <BrandLogo size="sm" href="/" />
+        ) : null}
 
-      {/* Title */}
-      {title && (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
-          <h1 style={{ fontWeight: 700, fontSize: '17px', margin: 0, color: 'var(--text-primary)' }}>
-            {title}
-          </h1>
-        </div>
-      )}
+        {/* Title */}
+        {title && (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+            <h1 style={{ fontWeight: 700, fontSize: '17px', margin: 0, color: 'var(--text-primary)' }}>
+              {title}
+            </h1>
+          </div>
+        )}
 
-      {/* Location */}
-      {showLocation && !title && (
-        <button style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          background: 'var(--primary-50)',
-          border: '1px solid var(--primary-100)',
-          borderRadius: 'var(--radius-full)',
-          padding: '5px 12px',
-          cursor: 'pointer',
-          flex: 1,
-          maxWidth: '200px',
-        }}>
-          <MapPin size={14} style={{ color: 'var(--primary-600)', flexShrink: 0 }} />
-          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--primary-700)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {selectedArea}, {selectedCity}
-          </span>
-          <ChevronDown size={12} style={{ color: 'var(--primary-600)', flexShrink: 0 }} />
-        </button>
-      )}
+        {/* Location */}
+        {showLocation && !title && (
+          <button
+            type="button"
+            onClick={() => setShowLocationModal(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'var(--primary-50)',
+              border: '1px solid var(--primary-100)',
+              borderRadius: 'var(--radius-full)',
+              padding: '5px 12px',
+              cursor: 'pointer',
+              flex: 1,
+              maxWidth: '200px',
+            }}
+          >
+            <MapPin size={14} style={{ color: 'var(--primary-600)', flexShrink: 0 }} />
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--primary-700)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {selectedArea ? `${selectedArea}, ${selectedCity}` : selectedCity}
+            </span>
+            <ChevronDown size={12} style={{ color: 'var(--primary-600)', flexShrink: 0 }} />
+          </button>
+        )}
 
       {/* Spacer */}
       {!showLocation && !title && !showBack && <div style={{ flex: 1 }} />}
@@ -143,5 +151,11 @@ export function Header({
         )}
       </div>
     </header>
+
+    <LocationSelectorModal
+      open={showLocationModal}
+      onOpenChange={setShowLocationModal}
+    />
+  </>
   );
 }
