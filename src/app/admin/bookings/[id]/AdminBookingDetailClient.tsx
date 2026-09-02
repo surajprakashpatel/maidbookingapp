@@ -92,8 +92,9 @@ export default function AdminBookingDetailClient({ params }: PageProps) {
     );
   }
 
-  const platformFee = Math.round(booking.totalAmount * 0.05);
-  const maidNet = booking.totalAmount - platformFee;
+  // Use stored platformFee if present (correct); fall back to 5% calculation for legacy records
+  const platformFee = booking.platformFee ?? Math.round(booking.totalAmount * 0.05);
+  const maidNet = booking.serviceAmount ?? (booking.totalAmount - platformFee);
 
   return (
     <AppShell role="admin" headerProps={{ title: `Booking #${booking.bookingNumber}`, showNotifications: false }}>

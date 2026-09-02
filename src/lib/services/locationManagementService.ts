@@ -22,7 +22,6 @@ async function seedDefaultLocationsIfNeeded() {
   try {
     const citySnap = await getDocs(collection(db, CITIES_COL));
     if (citySnap.empty) {
-      console.log('Seeding default cities into Firestore...');
       for (const cityName of SUPPORTED_CITIES) {
         const cityId = `city-${cityName.toLowerCase().replace(/\s+/g, '-')}`;
         await setDoc(doc(db, CITIES_COL, cityId), {
@@ -54,9 +53,7 @@ async function seedDefaultLocationsIfNeeded() {
       err?.code === 'permission-denied' ||
       String(err?.message || err).includes('permission') ||
       String(err?.message || err).includes('permissions');
-    if (isPermissionError) {
-      console.info('Seeding default locations skipped (non-admin client uses mock fallback).');
-    } else {
+    if (!isPermissionError) {
       console.warn('Seeding locations skipped or failed:', err);
     }
   }
@@ -88,9 +85,7 @@ export function subscribeToAllCities(callback: (cities: CityConfig[]) => void) {
       callback(cities);
     },
     (err: any) => {
-      if (err?.code === 'permission-denied' || String(err?.message || err).includes('permission')) {
-        console.info('Using fallback cities list (Firestore permissions/fallback active).');
-      } else {
+      if (!err?.code?.includes('permission') && !String(err?.message || err).includes('permission')) {
         console.warn('Error in subscribeToAllCities:', err);
       }
       const fallback: CityConfig[] = SUPPORTED_CITIES.map((c) => ({
@@ -128,9 +123,7 @@ export function subscribeToOperationalCities(callback: (cities: CityConfig[]) =>
       callback(cities);
     },
     (err: any) => {
-      if (err?.code === 'permission-denied' || String(err?.message || err).includes('permission')) {
-        console.info('Using fallback operational cities list (Firestore permissions/fallback active).');
-      } else {
+      if (!err?.code?.includes('permission') && !String(err?.message || err).includes('permission')) {
         console.warn('Error in subscribeToOperationalCities:', err);
       }
       const fallback: CityConfig[] = SUPPORTED_CITIES.map((c) => ({
@@ -242,9 +235,7 @@ export function subscribeToCityLocalities(cityName: string, callback: (localitie
       callback(localities);
     },
     (err: any) => {
-      if (err?.code === 'permission-denied' || String(err?.message || err).includes('permission')) {
-        console.info(`Using fallback localities for ${cityName} (Firestore permissions/fallback active).`);
-      } else {
+      if (!err?.code?.includes('permission') && !String(err?.message || err).includes('permission')) {
         console.warn(`Error in subscribeToCityLocalities for ${cityName}:`, err);
       }
       const defaultAreas = SUPPORTED_AREAS[cityName] || [];
@@ -292,9 +283,7 @@ export function subscribeToOperationalLocalities(cityName: string, callback: (lo
       callback(localities);
     },
     (err: any) => {
-      if (err?.code === 'permission-denied' || String(err?.message || err).includes('permission')) {
-        console.info(`Using fallback operational localities for ${cityName} (Firestore permissions/fallback active).`);
-      } else {
+      if (!err?.code?.includes('permission') && !String(err?.message || err).includes('permission')) {
         console.warn(`Error in subscribeToOperationalLocalities for ${cityName}:`, err);
       }
       const defaultAreas = SUPPORTED_AREAS[cityName] || [];
