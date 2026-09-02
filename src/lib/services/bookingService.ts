@@ -83,19 +83,16 @@ export async function createBooking(
         message: `Your booking #${bookingNumber} for ${data.serviceName} on ${data.date} with ${data.maidName} has been confirmed.`,
         type: 'booking',
       });
-      // 2. Notify Maid Partner
-      const maidUserIds = [data.maidId];
-      if (data.maidId.startsWith('maid-')) {
-        maidUserIds.push(data.maidId.replace('maid-', ''));
-      }
-      for (const mUid of maidUserIds) {
-        await sendAppNotification({
-          userId: mUid,
-          title: 'New Booking Request 🔔',
-          message: `New booking request from ${data.customerName} for ${data.serviceName} on ${data.date}.`,
-          type: 'booking',
-        });
-      }
+      // Notify Maid Partner - derive raw userId from maidId (strip 'maid-' prefix if present)
+      const maidUserId = data.maidId.startsWith('maid-')
+        ? data.maidId.replace('maid-', '')
+        : data.maidId;
+      await sendAppNotification({
+        userId: maidUserId,
+        title: 'New Booking Request 🔔',
+        message: `New booking request from ${data.customerName} for ${data.serviceName} on ${data.date}.`,
+        type: 'booking',
+      });
     } catch {
       // Non-blocking notification dispatch
     }
@@ -305,16 +302,15 @@ export async function updateBookingStatus(
             type: 'booking',
           });
         } else if (bookingStatus === 'cancelled') {
-          const maidIds = [b.maidId];
-          if (b.maidId.startsWith('maid-')) maidIds.push(b.maidId.replace('maid-', ''));
-          for (const mUid of maidIds) {
-            await sendAppNotification({
-              userId: mUid,
-              title: 'Booking Cancelled',
-              message: `Booking #${b.bookingNumber} for ${b.serviceName} was cancelled.`,
-              type: 'booking',
-            });
-          }
+          const maidUserId = b.maidId.startsWith('maid-')
+            ? b.maidId.replace('maid-', '')
+            : b.maidId;
+          await sendAppNotification({
+            userId: maidUserId,
+            title: 'Booking Cancelled',
+            message: `Booking #${b.bookingNumber} for ${b.serviceName} was cancelled.`,
+            type: 'booking',
+          });
         }
       }
     } catch {

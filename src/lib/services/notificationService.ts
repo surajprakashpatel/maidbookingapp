@@ -46,7 +46,7 @@ export function subscribeToUserNotifications(
  */
 export async function sendAppNotification(notif: Omit<Notification, 'id' | 'read' | 'createdAt'>): Promise<boolean> {
   try {
-    const notifId = `notif-${Date.now()}`;
+    const notifId = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const newNotif: Notification = {
       ...notif,
       id: notifId,

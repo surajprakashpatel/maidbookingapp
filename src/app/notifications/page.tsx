@@ -1,10 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { useApp } from '@/lib/app-context';
 import { useAuth } from '@/lib/auth-context';
-import { fetchUserNotifications } from '@/lib/services/notificationService';
 import { timeAgo } from '@/lib/utils';
 import { Bell, CheckCheck, CalendarDays, CreditCard, User, Megaphone, Home } from 'lucide-react';
 
@@ -22,14 +20,6 @@ const renderNotificationIcon = (type: string) => {
 export default function NotificationsPage() {
   const { user } = useAuth();
   const { notifications, markRead, markAllRead, unreadCount } = useApp();
-
-  useEffect(() => {
-    async function load() {
-      if (!user) return;
-      await fetchUserNotifications(user.id);
-    }
-    load();
-  }, [user]);
 
   return (
     <AppShell role={user?.role || 'customer'} headerProps={{
