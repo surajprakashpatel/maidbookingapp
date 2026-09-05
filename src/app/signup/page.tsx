@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useApp } from '@/lib/app-context';
 import { validatePhone, validateEmail } from '@/lib/utils';
@@ -10,10 +10,19 @@ import { ArrowLeft, User, Phone, Mail, Lock, Eye, EyeOff, Loader, Home } from 'l
 import Link from 'next/link';
 import { BrandLogo } from '@/components/ui/BrandLogo';
 
-export default function SignupPage() {
+export function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { signup, isLoading } = useAuth();
   const { showToast } = useApp();
+
+  const roleParam = searchParams.get('role');
+
+  useEffect(() => {
+    if (roleParam === 'maid') {
+      router.replace('/maid/register');
+    }
+  }, [roleParam, router]);
 
   const [form, setForm] = useState({
     name: '',
@@ -111,6 +120,24 @@ export default function SignupPage() {
             <p className="text-sm font-medium text-slate-500">
               Book verified and trusted home maids in minutes
             </p>
+          </div>
+
+          {/* Clean Flat Role Navigation Tabs matching Login */}
+          <div className="flex border-b border-slate-200">
+            <button
+              type="button"
+              className="flex-1 pb-3 text-sm font-semibold flex items-center justify-center gap-2 border-b-2 border-blue-600 text-blue-600 transition-colors cursor-pointer"
+            >
+              <User className="size-4" />
+              <span>Customer</span>
+            </button>
+            <Link
+              href="/maid/register"
+              className="flex-1 pb-3 text-sm font-semibold flex items-center justify-center gap-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+            >
+              <Home className="size-4" />
+              <span>Maid Partner</span>
+            </Link>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -367,5 +394,19 @@ export default function SignupPage() {
         </p>
       </footer>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-dvh flex items-center justify-center bg-slate-50">
+          <Loader className="size-8 animate-spin text-blue-600" />
+        </div>
+      }
+    >
+      <SignupForm />
+    </Suspense>
   );
 }

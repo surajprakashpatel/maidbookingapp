@@ -12,7 +12,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase/config';
-import { UserRole, User } from './types';
+import { UserRole, User, ApprovalStatus } from './types';
 import { TEST_CUSTOMER, TEST_MAID } from './mockData';
 import { cleanFirestoreData } from './utils';
 
@@ -56,17 +56,42 @@ const STORAGE_KEY = 'maideasy_user_session';
 export function isProfileComplete(u: Partial<User> | null | undefined): boolean {
   if (!u) return false;
   if (u.role === 'admin') return true;
-  if (u.profileCompleted === true) return true;
+  if (u.profileCompleted === false) return false;
+
   const hasValidName = !!u.name && u.name.trim().length >= 2 && !u.name.startsWith('User ') && u.name !== 'Google User';
+  if (!hasValidName) return false;
+
+  const digits = (u.phone || '').replace(/\D/g, '');
+  const hasValidPhone = digits.length === 10;
+  if (!hasValidPhone) return false;
+
   const hasValidRole = u.role === 'customer' || u.role === 'maid';
-  const hasValidArea = !!u.area || !!u.location;
-  return hasValidName && hasValidRole && hasValidArea;
+  if (!hasValidRole) return false;
+
+  const hasValidCity = !!(u.city || u.location);
+  if (!hasValidCity) return false;
+
+  const hasValidArea = !!u.area && u.area.trim().length > 0;
+  if (!hasValidArea) return false;
+
+  if (u.role === 'customer') {
+    const hasValidAddress = !!u.address && u.address.trim().length >= 5;
+    if (!hasValidAddress) return false;
+  }
+
+  if (u.role === 'maid' && u.profileCompleted !== true) {
+    return false;
+  }
+
+  return true;
 }
 
 interface AuthResult {
   success: boolean;
   isNewUser?: boolean;
   role?: UserRole;
+  approvalStatus?: ApprovalStatus;
+  rejectionReason?: string;
   error?: string;
 }
 
@@ -132,11 +157,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const snap = await getDoc(userDocRef);
           if (snap.exists()) {
             const data = snap.data() as User;
+            let approvalStatus = data.approvalStatus;
+            let rejectionReason = data.rejectionReason;
+
+            // If maid, check maid doc for approvalStatus sync
+            if (data.role === 'maid') {
+              const maidSnap = await getDoc(doc(db, 'maids', `maid-${fbUser.uid}`)).catch(() => null);
+              if (maidSnap && maidSnap.exists()) {
+                const mData = maidSnap.data();
+                if (mData.approvalStatus) approvalStatus = mData.approvalStatus;
+                if (mData.rejectionReason) rejectionReason = mData.rejectionReason;
+              }
+            }
+
             const complete = isProfileComplete(data);
+            // Customers are automatically approved once complete/active; Maids and legacy users check approvalStatus
+            if (data.role === 'customer') {
+              approvalStatus = 'approved';
+            } else if (!approvalStatus) {
+              approvalStatus = (data.role === 'admin' || (data.status === 'active' && complete)) ? 'approved' : 'pending';
+            }
+
             const verifiedUser: User = {
               ...data,
               id: fbUser.uid,
               role: data.role || 'customer',
+              approvalStatus,
+              rejectionReason,
               profileCompleted: complete,
             };
             saveUserSession(verifiedUser);
@@ -150,11 +197,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 email: fbUser.email || 'admin@maideasy.in',
                 phone: '9000000001',
                 status: 'active',
+                approvalStatus: 'approved',
                 profileCompleted: true,
                 createdAt: new Date().toISOString(),
               };
               await setDoc(userDocRef, cleanFirestoreData(adminUser), { merge: true });
               saveUserSession(adminUser);
+            } else {
+              // Authenticated user whose profile doc is not yet created: create draft
+              const pendingUser: User = {
+                id: fbUser.uid,
+                role: 'customer',
+                name: fbUser.displayName || '',
+                phone: fbUser.phoneNumber || '',
+                email: fbUser.email || undefined,
+                photoUrl: fbUser.photoURL || undefined,
+                status: 'active',
+                approvalStatus: 'approved',
+                profileCompleted: false,
+                createdAt: new Date().toISOString(),
+              };
+              await setDoc(userDocRef, cleanFirestoreData(pendingUser), { merge: true });
+              saveUserSession(pendingUser);
             }
           }
         } catch (err) {
@@ -202,17 +266,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (snap.exists()) {
         const data = snap.data() as User;
-        if (isProfileComplete(data)) {
-          const completeUser: User = { ...data, profileCompleted: true };
-          saveUserSession(completeUser);
-          setIsLoading(false);
-          return { success: true, isNewUser: false, role: completeUser.role };
-        } else {
-          const pendingUser: User = { ...data, id: uid, role: data.role || role, profileCompleted: false };
-          saveUserSession(pendingUser);
-          setIsLoading(false);
-          return { success: true, isNewUser: true, role: pendingUser.role };
+        let approvalStatus = data.approvalStatus;
+        let rejectionReason = data.rejectionReason;
+
+        // If maid, also check maid doc for most up-to-date approval status
+        if ((data.role === 'maid' || role === 'maid')) {
+          const maidSnap = await getDoc(doc(db, 'maids', `maid-${uid}`)).catch(() => null);
+          if (maidSnap && maidSnap.exists()) {
+            const mData = maidSnap.data();
+            if (mData.approvalStatus) approvalStatus = mData.approvalStatus;
+            if (mData.rejectionReason) rejectionReason = mData.rejectionReason;
+          }
         }
+
+        // Fallback for pre-existing active users: treat as approved
+        if (data.role === 'customer' || role === 'customer') {
+          approvalStatus = 'approved';
+        } else if (!approvalStatus) {
+          approvalStatus = (data.role === 'admin' || data.status === 'active') ? 'approved' : 'pending';
+        }
+
+        const complete = isProfileComplete(data);
+        const resolvedUser: User = {
+          ...data,
+          id: uid,
+          role: data.role || role,
+          approvalStatus,
+          rejectionReason,
+          profileCompleted: complete,
+        };
+        saveUserSession(resolvedUser);
+        setIsLoading(false);
+        return {
+          success: true,
+          isNewUser: !complete,
+          role: resolvedUser.role,
+          approvalStatus,
+          rejectionReason,
+        };
       } else {
         const pendingUser: User = {
           id: uid,
@@ -221,12 +312,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           phone: emailOrPhone.includes('@') ? '' : emailOrPhone,
           email: email.includes('@maideasy.in') ? undefined : email,
           status: 'active',
+          approvalStatus: role === 'customer' ? 'approved' : 'pending',
           profileCompleted: false,
           createdAt: new Date().toISOString(),
         };
         saveUserSession(pendingUser);
         setIsLoading(false);
-        return { success: true, isNewUser: true, role };
+        return { success: true, isNewUser: true, role, approvalStatus: role === 'customer' ? 'approved' : 'pending' };
       }
     } catch (err: unknown) {
       console.error('Login error:', err);
@@ -329,17 +421,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (snap.exists()) {
         const data = snap.data() as User;
-        if (isProfileComplete(data)) {
-          const completeUser: User = { ...data, profileCompleted: true };
-          saveUserSession(completeUser);
-          setIsLoading(false);
-          return { success: true, isNewUser: false, role: completeUser.role };
-        } else {
-          const pendingUser: User = { ...data, id: fbUser.uid, role: data.role || role, profileCompleted: false };
-          saveUserSession(pendingUser);
-          setIsLoading(false);
-          return { success: true, isNewUser: true, role: pendingUser.role };
+        let approvalStatus = data.approvalStatus;
+        let rejectionReason = data.rejectionReason;
+
+        if (data.role === 'maid' || role === 'maid') {
+          const maidSnap = await getDoc(doc(db, 'maids', `maid-${fbUser.uid}`)).catch(() => null);
+          if (maidSnap && maidSnap.exists()) {
+            const mData = maidSnap.data();
+            if (mData.approvalStatus) approvalStatus = mData.approvalStatus;
+            if (mData.rejectionReason) rejectionReason = mData.rejectionReason;
+          }
         }
+
+        const complete = isProfileComplete(data);
+        if (data.role === 'customer' || role === 'customer') {
+          approvalStatus = 'approved';
+        } else if (!approvalStatus) {
+          approvalStatus = (data.role === 'admin' || (data.status === 'active' && complete)) ? 'approved' : 'pending';
+        }
+
+        const resolvedUser: User = {
+          ...data,
+          id: fbUser.uid,
+          role: data.role || role,
+          approvalStatus,
+          rejectionReason,
+          profileCompleted: complete,
+        };
+        saveUserSession(resolvedUser);
+        setIsLoading(false);
+        return {
+          success: true,
+          isNewUser: !complete,
+          role: resolvedUser.role,
+          approvalStatus,
+          rejectionReason,
+        };
       } else {
         const pendingUser: User = {
           id: fbUser.uid,
@@ -349,12 +466,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: fbUser.email || undefined,
           photoUrl: fbUser.photoURL || undefined,
           status: 'active',
+          approvalStatus: role === 'customer' ? 'approved' : 'pending',
           profileCompleted: false,
           createdAt: new Date().toISOString(),
         };
+        await setDoc(userDocRef, cleanFirestoreData(pendingUser), { merge: true });
         saveUserSession(pendingUser);
         setIsLoading(false);
-        return { success: true, isNewUser: true, role };
+        return { success: true, isNewUser: true, role, approvalStatus: role === 'customer' ? 'approved' : 'pending' };
       }
     } catch (err: unknown) {
       console.error('Google login error:', err);
@@ -382,8 +501,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const cred = await createUserWithEmailAndPassword(auth, userEmail, pass);
       const uid = cred.user.uid;
 
+      const cleanPhoneDigits = (phone || '').replace(/\D/g, '');
       const isComplete = role === 'customer'
-        ? !!(name && phone && (additionalData?.area || additionalData?.location || additionalData?.city))
+        ? !!(
+            name && name.trim().length >= 2 &&
+            cleanPhoneDigits.length === 10 &&
+            (additionalData?.area || additionalData?.location || additionalData?.city) &&
+            additionalData?.address && additionalData.address.trim().length >= 5
+          )
         : false;
 
       const newUser: User = {
@@ -397,6 +522,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         area: additionalData?.area || '',
         address: additionalData?.address || '',
         status: 'active',
+        approvalStatus: role === 'customer' ? 'approved' : 'pending',
         profileCompleted: isComplete,
         createdAt: new Date().toISOString(),
       };
@@ -404,9 +530,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userDocRef = doc(db, 'users', uid);
       await setDoc(userDocRef, cleanFirestoreData(newUser), { merge: true });
 
+      if (role === 'customer') {
+        const custDocRef = doc(db, 'customers', uid);
+        await setDoc(custDocRef, cleanFirestoreData({
+          ...newUser,
+          totalBookings: 0,
+        }), { merge: true }).catch(() => {});
+      }
+
+      // Dispatch admin notification for approval request ONLY for Maid applications
+      if (role === 'maid' && isComplete) {
+        try {
+          const { notifyAdminsNewRegistration } = await import('./services/notificationService');
+          await notifyAdminsNewRegistration({
+            id: uid,
+            name,
+            role,
+            phone,
+            email: newUser.email,
+          });
+        } catch (notifErr) {
+          console.warn('Failed to dispatch admin notification:', notifErr);
+        }
+      }
+
       saveUserSession(newUser);
       setIsLoading(false);
-      return { success: true, isNewUser: !isComplete, role };
+      return { success: true, isNewUser: !isComplete, role, approvalStatus: role === 'customer' ? 'approved' : 'pending' };
     } catch (err: unknown) {
       console.error('Signup error:', err);
       setIsLoading(false);

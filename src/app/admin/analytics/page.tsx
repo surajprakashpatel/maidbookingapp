@@ -57,14 +57,14 @@ export default function AdminAnalyticsPage() {
     <AppShell role="admin" headerProps={{ title: 'Platform Analytics', showNotifications: false }}>
       <div className="animate-fade-in space-y-5">
         {loading ? (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 min-[360px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {[1, 2, 3, 4].map(i => (
               <Skeleton key={i} className="h-32 w-full rounded-2xl" />
             ))}
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 min-[360px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               {[
                 { label: 'Registered Customers', value: `${stats.customers.total}`, sub: 'Active accounts', icon: <TrendingUp className="size-5" />, color: 'var(--success-600)', bg: 'var(--success-50)' },
                 { label: 'Maids Approved', value: `${stats.maids.approved}/${stats.maids.total}`, sub: `${stats.maids.pending} pending approval`, icon: <Shield className="size-5" />, color: 'var(--primary-600)', bg: 'var(--primary-50)' },

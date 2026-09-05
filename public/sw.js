@@ -4,7 +4,6 @@ const CACHE_NAME = 'maideasy-v1';
 const STATIC_ASSETS = [
   '/',
   '/home',
-  '/offline',
 ];
 
 self.addEventListener('install', (event) => {

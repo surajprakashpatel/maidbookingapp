@@ -4,7 +4,7 @@
 
 export type UserRole = 'customer' | 'maid' | 'admin';
 
-export type ApprovalStatus = 'draft' | 'under_review' | 'approved' | 'rejected' | 'suspended';
+export type ApprovalStatus = 'draft' | 'pending' | 'under_review' | 'approved' | 'rejected' | 'suspended';
 export type VerificationStatus = 'not_submitted' | 'submitted' | 'pending' | 'verified' | 'failed';
 export type SelfieStatus = 'not_captured' | 'captured' | 'verification_pending' | 'verified' | 'failed';
 
@@ -36,6 +36,8 @@ export interface User {
   area?: string;
   address?: string;
   status: 'active' | 'suspended';
+  approvalStatus?: ApprovalStatus;
+  rejectionReason?: string;
   profileCompleted?: boolean;
   createdAt: string;
   updatedAt?: string;

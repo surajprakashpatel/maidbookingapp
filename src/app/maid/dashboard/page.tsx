@@ -188,22 +188,22 @@ export default function MaidDashboardPage() {
         </div>
 
         {/* Action Shortcuts */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
           <Button
             variant="outline"
             onClick={() => router.push('/maid/bookings')}
             className="h-12 justify-start gap-2 text-xs font-bold"
           >
-            <CalendarDays className="size-4 text-[var(--primary-600)]" />
-            View Bookings ({newBookings + upcoming})
+            <CalendarDays className="size-4 text-[var(--primary-600)] shrink-0" />
+            <span className="truncate">View Bookings ({newBookings + upcoming})</span>
           </Button>
           <Button
             variant="outline"
             onClick={() => router.push('/maid/earnings')}
             className="h-12 justify-start gap-2 text-xs font-bold"
           >
-            <Wallet className="size-4 text-[var(--success-600)]" />
-            Earnings & Payouts
+            <Wallet className="size-4 text-[var(--success-600)] shrink-0" />
+            <span className="truncate">Earnings & Payouts</span>
           </Button>
         </div>
 

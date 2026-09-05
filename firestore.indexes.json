@@ -56,6 +56,14 @@
         { "fieldPath": "read", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "locations_localities",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "cityName", "order": "ASCENDING" },
+        { "fieldPath": "isOperational", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

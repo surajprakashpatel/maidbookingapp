@@ -188,6 +188,16 @@ export async function toggleCityOperational(cityId: string, isOperational: boole
   return updateCity(cityId, { isOperational });
 }
 
+export async function deleteCity(cityId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    await deleteDoc(doc(db, CITIES_COL, cityId));
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error deleting city:', err);
+    return { success: false, error: err.message || 'Failed to delete city.' };
+  }
+}
+
 // ----------------------------------------------------------------------
 // LOCALITIES SUBSCRIPTIONS & CRUD
 // ----------------------------------------------------------------------

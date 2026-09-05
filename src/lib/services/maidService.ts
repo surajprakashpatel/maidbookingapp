@@ -7,7 +7,7 @@ import {
   createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { db, auth } from '../firebase/config';
-import { Maid, MaidRegistrationForm, FilterState, ApprovalStatus } from '../types';
+import { Maid, MaidRegistrationForm, FilterState, ApprovalStatus, User } from '../types';
 import { maskAadhaar, cleanFirestoreData } from '../utils';
 import { uploadDataUrl, uploadFile } from './storageService';
 
@@ -142,7 +142,11 @@ export async function fetchAllMaidsAdmin(statusFilter?: ApprovalStatus | 'all'):
     const maidsRef = collection(db, 'maids');
     let q = query(maidsRef);
     if (statusFilter && statusFilter !== 'all') {
-      q = query(maidsRef, where('approvalStatus', '==', statusFilter));
+      if (statusFilter === 'under_review' || statusFilter === 'pending') {
+        q = query(maidsRef, where('approvalStatus', 'in', ['under_review', 'pending']));
+      } else {
+        q = query(maidsRef, where('approvalStatus', '==', statusFilter));
+      }
     }
     const snap = await getDocs(q);
     return snap.docs.map(d => d.data() as Maid);
@@ -162,7 +166,11 @@ export function subscribeToAllMaidsAdmin(
   const maidsRef = collection(db, 'maids');
   let q = query(maidsRef);
   if (statusFilter && statusFilter !== 'all') {
-    q = query(maidsRef, where('approvalStatus', '==', statusFilter));
+    if (statusFilter === 'under_review' || statusFilter === 'pending') {
+      q = query(maidsRef, where('approvalStatus', 'in', ['under_review', 'pending']));
+    } else {
+      q = query(maidsRef, where('approvalStatus', '==', statusFilter));
+    }
   }
 
   return onSnapshot(q, (snap) => {
@@ -182,20 +190,22 @@ export async function submitMaidRegistration(
   userId: string
 ): Promise<{ success: boolean; maidId?: string; userId?: string; error?: string }> {
   try {
-    // 1. Ensure Firebase Auth session exists so Storage & Firestore rules permit access
+    // 1. Ensure effective user ID exists
     let effectiveUserId = userId;
-    if (!auth.currentUser) {
-      const cleanPhone = form.phone ? form.phone.replace(/\D/g, '') : `${Date.now()}`;
-      const email = form.email || `${cleanPhone}@maideasy.in`;
-      try {
-        const cred = await signInWithEmailAndPassword(auth, email, 'Password123!');
-        effectiveUserId = cred.user.uid;
-      } catch {
-        const cred = await createUserWithEmailAndPassword(auth, email, 'Password123!');
-        effectiveUserId = cred.user.uid;
+    if (!effectiveUserId) {
+      if (auth.currentUser) {
+        effectiveUserId = auth.currentUser.uid;
+      } else {
+        const cleanPhone = form.phone ? form.phone.replace(/\D/g, '') : `${Date.now()}`;
+        const email = form.email || `${cleanPhone}@maideasy.in`;
+        try {
+          const cred = await signInWithEmailAndPassword(auth, email, 'Password123!');
+          effectiveUserId = cred.user.uid;
+        } catch {
+          const cred = await createUserWithEmailAndPassword(auth, email, 'Password123!');
+          effectiveUserId = cred.user.uid;
+        }
       }
-    } else {
-      effectiveUserId = auth.currentUser.uid;
     }
 
     const maidId = `maid-${effectiveUserId}`;
@@ -238,7 +248,7 @@ export async function submitMaidRegistration(
       area: form.area,
       address: form.address,
       pincode: form.pincode,
-      serviceAreas: form.serviceAreas.length > 0 ? form.serviceAreas : [form.area],
+      serviceAreas: (form.serviceAreas && form.serviceAreas.length > 0) ? form.serviceAreas : (form.area ? [form.area] : []),
       workRadius: form.workRadius || 5,
       qualification: form.qualification,
       experience: form.experience,
@@ -275,9 +285,24 @@ export async function submitMaidRegistration(
       area: form.area,
       address: form.address,
       status: 'active',
+      approvalStatus: 'under_review',
       profileCompleted: true,
       updatedAt: new Date().toISOString(),
     }), { merge: true }).catch(() => {});
+
+    // Notify administrators about new maid application
+    try {
+      const { notifyAdminsNewRegistration } = await import('./notificationService');
+      await notifyAdminsNewRegistration({
+        id: maidId,
+        name: form.name,
+        role: 'maid',
+        phone: form.phone,
+        email: form.email || undefined,
+      });
+    } catch (e) {
+      console.warn('Failed to notify admins of maid registration:', e);
+    }
 
     return { success: true, maidId, userId: effectiveUserId };
   } catch (err) {
@@ -312,12 +337,21 @@ export async function updateMaidApprovalStatus(
     }
     await updateDoc(docRef, cleanFirestoreData(updates));
 
-    // Non-blocking automated notification dispatch to the maid user
+    // Non-blocking automated notification dispatch and user doc sync
     try {
       const snap = await getDoc(docRef);
       const mData = snap.exists() ? (snap.data() as Maid) : null;
       const targetUserId = mData?.userId || maidId.replace('maid-', '');
       if (targetUserId) {
+        // Sync user document approvalStatus
+        const userDocRef = doc(db, 'users', targetUserId);
+        const userUpdates: Partial<User> & { rejectionReason?: string } = {
+          approvalStatus,
+          updatedAt: new Date().toISOString(),
+        };
+        if (reason) userUpdates.rejectionReason = reason;
+        await updateDoc(userDocRef, cleanFirestoreData(userUpdates)).catch(() => {});
+
         const { sendAppNotification } = await import('./notificationService');
         if (approvalStatus === 'approved') {
           await sendAppNotification({

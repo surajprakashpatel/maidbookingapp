@@ -1800,6 +1800,24 @@ a {
   color: var(--primary-500);
 }
 
+@media (max-width: 480px) {
+  .stepper-label {
+    display: none;
+  }
+  .stepper-dot {
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+  }
+  .stepper-step:not(:last-child)::after {
+    top: 12px;
+  }
+}
+
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ============================================================
    TOGGLE SWITCH
    ============================================================ */

@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [maids, setMaids] = useState<Maid[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [stats, setStats] = useState<AdminStats>(INITIAL_ADMIN_STATS);
 
   useEffect(() => {
@@ -26,7 +27,7 @@ export default function AdminDashboardPage() {
 
     const recalculate = () => {
       const approvedMaids = maidsList.filter(m => m.approvalStatus === 'approved').length;
-      const pendingMaids = maidsList.filter(m => m.approvalStatus === 'under_review').length;
+      const pendingMaids = maidsList.filter(m => m.approvalStatus === 'under_review' || m.approvalStatus === 'pending').length;
       const rejectedMaids = maidsList.filter(m => m.approvalStatus === 'rejected').length;
       const completedBookings = bookingsList.filter(b => b.bookingStatus === 'completed').length;
       const confirmedBookings = bookingsList.filter(b => b.bookingStatus === 'confirmed' || b.bookingStatus === 'paid').length;
@@ -55,6 +56,7 @@ export default function AdminDashboardPage() {
 
     const unsubCustomers = subscribeToAllCustomers((data) => {
       customersList = data;
+      setCustomers(data);
       recalculate();
     });
 
@@ -65,15 +67,15 @@ export default function AdminDashboardPage() {
     };
   }, []);
 
-  const pendingMaids = maids.filter(m => m.approvalStatus === 'under_review');
+  const pendingMaids = maids.filter(m => m.approvalStatus === 'under_review' || m.approvalStatus === 'pending');
 
   return (
     <AppShell role="admin" headerProps={{ title: 'Admin Overview' }}>
       <div className="animate-fade-in space-y-6">
         {/* KPI Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3.5">
           <Card className="border-slate-200/80 shadow-xs">
-            <CardContent className="p-4 flex items-center justify-between">
+            <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-xs font-semibold text-slate-500">Gross Volume</p>
                 <h3 className="text-xl font-extrabold text-slate-900">{formatINRCompact(stats.revenue.gross)}</h3>
@@ -86,7 +88,7 @@ export default function AdminDashboardPage() {
           </Card>
 
           <Card className="border-slate-200/80 shadow-xs">
-            <CardContent className="p-4 flex items-center justify-between">
+            <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-xs font-semibold text-slate-500">Total Bookings</p>
                 <h3 className="text-xl font-extrabold text-slate-900">{stats.bookings.total}</h3>
@@ -99,11 +101,11 @@ export default function AdminDashboardPage() {
           </Card>
 
           <Card className="border-slate-200/80 shadow-xs">
-            <CardContent className="p-4 flex items-center justify-between">
+            <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-xs font-semibold text-slate-500">Active Maids</p>
                 <h3 className="text-xl font-extrabold text-slate-900">{stats.maids.approved}</h3>
-                <p className="text-[11px] text-amber-600 font-semibold">{stats.maids.pending} pending</p>
+                <p className="text-[11px] text-amber-600 font-semibold">{pendingMaids.length} pending</p>
               </div>
               <div className="size-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
                 <Shield className="size-5" />
@@ -112,11 +114,11 @@ export default function AdminDashboardPage() {
           </Card>
 
           <Card className="border-slate-200/80 shadow-xs">
-            <CardContent className="p-4 flex items-center justify-between">
+            <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-xs font-semibold text-slate-500">Customers</p>
                 <h3 className="text-xl font-extrabold text-slate-900">{stats.customers.total}</h3>
-                <p className="text-[11px] text-slate-500 font-semibold">{stats.customers.newThisMonth} active</p>
+                <p className="text-[11px] text-blue-600 font-semibold">{customers.filter(c => c.status === 'active' || c.approvalStatus === 'approved').length} active</p>
               </div>
               <div className="size-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                 <Users className="size-5" />
@@ -125,10 +127,10 @@ export default function AdminDashboardPage() {
           </Card>
         </div>
 
-        {/* Pending Verification Banner */}
+        {/* Pending Maid Verification Banner */}
         {pendingMaids.length > 0 && (
           <Card className="border-amber-200 bg-amber-50/50 shadow-xs">
-            <CardContent className="p-4 flex items-center justify-between">
+            <CardContent className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="size-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
                   <AlertCircle className="size-5" />
@@ -140,8 +142,8 @@ export default function AdminDashboardPage() {
                   <p className="text-xs text-amber-700">Review identity documents and verify qualifications.</p>
                 </div>
               </div>
-              <Link href="/admin/maids?status=under_review">
-                <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-9">
+              <Link href="/admin/maids?status=under_review" className="w-full sm:w-auto">
+                <Button size="sm" className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-9">
                   Review Applications
                 </Button>
               </Link>

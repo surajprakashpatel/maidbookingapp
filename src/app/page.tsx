@@ -31,16 +31,16 @@ export default function LandingPage() {
 
       <div className="min-h-dvh bg-[#FAFAFC] text-[var(--text-primary)] flex flex-col justify-between overflow-x-hidden select-none">
         {/* Top Header Navigation */}
-        <header className="w-full px-6 py-4 flex items-center justify-between border-b border-gray-200/60 bg-white sticky top-0 z-30">
+        <header className="w-full px-3.5 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-b border-gray-200/60 bg-white sticky top-0 z-30">
           <BrandLogo size="md" />
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             <Link href="/login">
-              <Button variant="ghost" size="sm" className="font-bold text-[var(--text-primary)] hover:bg-gray-100">
+              <Button variant="ghost" size="sm" className="font-bold text-xs sm:text-sm px-2.5 sm:px-3 text-[var(--text-primary)] hover:bg-gray-100">
                 Sign In
               </Button>
             </Link>
             <Link href="/signup">
-              <Button size="sm" className="font-extrabold bg-[var(--primary-600)] hover:bg-[var(--primary-700)] text-white shadow-xs">
+              <Button size="sm" className="font-extrabold text-xs sm:text-sm px-3 sm:px-4 bg-[var(--primary-600)] hover:bg-[var(--primary-700)] text-white shadow-xs">
                 Get Started
               </Button>
             </Link>
@@ -48,15 +48,15 @@ export default function LandingPage() {
         </header>
 
         {/* HERO SECTION — Clean 2 Column Desktop / 1 Column Mobile */}
-        <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-12 md:py-20 grid grid-cols-1 md:grid-cols-2 items-center gap-10 md:gap-14">
+        <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 md:py-20 grid grid-cols-1 md:grid-cols-2 items-center gap-8 md:gap-14">
           {/* Left Column: Headline, Short Subtext, Primary CTA */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="space-y-6 text-center md:text-left flex flex-col items-center md:items-start"
+            className="space-y-5 sm:space-y-6 text-center md:text-left flex flex-col items-center md:items-start"
           >
-            <h1 className="text-4xl sm:text-5xl font-black text-[var(--text-primary)] leading-[1.12] tracking-tight">
+            <h1 className="text-3xl min-[380px]:text-4xl sm:text-5xl font-black text-[var(--text-primary)] leading-[1.12] tracking-tight">
               Trusted Help <br />
               For Your Home
             </h1>

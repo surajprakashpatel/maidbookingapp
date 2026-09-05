@@ -5,9 +5,9 @@ import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/lib/auth-context';
 import { subscribeToMaidBookings } from '@/lib/services/bookingService';
 import { Booking } from '@/lib/types';
-import { formatINR, formatINRCompact, formatDate } from '@/lib/utils';
+import { formatINR, formatDate } from '@/lib/utils';
 import { TrendingUp, Wallet, Clock, CheckCircle, Lightbulb, Loader2 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 
 export default function MaidEarningsPage() {
   const { user } = useAuth();

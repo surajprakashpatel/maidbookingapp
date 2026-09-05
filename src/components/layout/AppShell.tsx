@@ -7,6 +7,10 @@ import { Header } from './Header';
 import { UserRole } from '@/lib/types';
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { subscribeToUserById } from '@/lib/services/userService';
+import { Clock, XCircle, LogOut } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -23,8 +27,22 @@ interface AppShellProps {
 }
 
 export function AppShell({ children, role, headerProps = {}, hideNav = false }: AppShellProps) {
-  const { user, isAuthenticated, isInitializing, logout } = useAuth();
+  const { user, isAuthenticated, isInitializing, logout, updateUser } = useAuth();
   const router = useRouter();
+
+  // Listen for real-time approval status updates when pending
+  useEffect(() => {
+    if (!user?.id || user.role !== 'customer') return;
+    const unsub = subscribeToUserById(user.id, (liveUser) => {
+      if (liveUser && liveUser.approvalStatus && liveUser.approvalStatus !== user.approvalStatus) {
+        updateUser({
+          approvalStatus: liveUser.approvalStatus,
+          rejectionReason: liveUser.rejectionReason,
+        });
+      }
+    });
+    return () => unsub();
+  }, [user?.id, user?.role, user?.approvalStatus, updateUser]);
 
   useEffect(() => {
     if (isInitializing) return;
@@ -42,7 +60,11 @@ export function AppShell({ children, role, headerProps = {}, hideNav = false }: 
 
     // Check if profile is complete
     if (user && user.role !== 'admin' && user.profileCompleted === false) {
-      router.push('/profile/create');
+      if (user.role === 'maid') {
+        router.push('/maid/register');
+      } else {
+        router.push('/profile/create');
+      }
       return;
     }
 
@@ -126,6 +148,77 @@ export function AppShell({ children, role, headerProps = {}, hideNav = false }: 
     }
   };
 
+  // Check customer approval access
+  if (user && user.role === 'customer') {
+    const isPending = user.approvalStatus === 'pending' || user.approvalStatus === 'under_review';
+    const isRejected = user.approvalStatus === 'rejected';
+
+    if (isPending) {
+      return (
+        <div className="min-h-dvh bg-slate-50 flex items-center justify-center p-3.5 sm:p-4">
+          <Card className="max-w-md w-full p-4 sm:p-6 text-center space-y-5 bg-white border border-amber-200/90 shadow-sm rounded-3xl animate-fade-in">
+            <div className="size-14 sm:size-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+              <Clock className="size-7 sm:size-8 animate-pulse" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900">Waiting for Admin Approval</h2>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Hello <span className="font-bold text-slate-800">{user.name}</span>, your customer account registration has been submitted and is currently awaiting administrator review.
+              </p>
+              <div className="bg-amber-50 rounded-xl p-3 border border-amber-100 text-amber-800 text-[11px] text-left space-y-1">
+                <div className="font-semibold">Account Status: Pending Approval</div>
+                <div>Registered Phone: {user.phone}</div>
+                <div>City: {user.city || user.location || 'Bhilai'}</div>
+              </div>
+              <div className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-emerald-600 pt-1">
+                <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
+                <span>Checking status in real time. Will unlock automatically once approved.</span>
+              </div>
+            </div>
+            <div className="pt-2 flex flex-col gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLogout}
+                className="w-full text-xs font-semibold gap-1.5 rounded-xl text-slate-600"
+              >
+                <LogOut className="size-3.5" /> Sign Out
+              </Button>
+            </div>
+          </Card>
+        </div>
+      );
+    }
+
+    if (isRejected) {
+      return (
+        <div className="min-h-dvh bg-slate-50 flex items-center justify-center p-3.5 sm:p-4">
+          <Card className="max-w-md w-full p-4 sm:p-6 text-center space-y-5 bg-white border border-red-200/90 shadow-sm rounded-3xl animate-fade-in">
+            <div className="size-14 sm:size-16 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <XCircle className="size-7 sm:size-8" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900">Account Registration Not Approved</h2>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {user.rejectionReason || 'Your account application could not be approved at this time. Please contact customer support.'}
+              </p>
+            </div>
+            <div className="pt-2 flex flex-col gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLogout}
+                className="w-full text-xs font-semibold gap-1.5 rounded-xl text-slate-600"
+              >
+                <LogOut className="size-3.5" /> Sign Out
+              </Button>
+            </div>
+          </Card>
+        </div>
+      );
+    }
+  }
+
   return (
     <div style={{ minHeight: '100dvh', background: 'var(--background)' }}>
       {/* Desktop Sidebar */}
@@ -149,12 +242,10 @@ export function AppShell({ children, role, headerProps = {}, hideNav = false }: 
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
         className="page-content"
-        style={{
-          paddingLeft: '16px',
-          paddingRight: '16px',
-        }}
       >
-        {children}
+        <div className="max-w-7xl mx-auto w-full px-3.5 sm:px-6 lg:px-8">
+          {children}
+        </div>
       </motion.main>
 
       {/* Mobile nav */}

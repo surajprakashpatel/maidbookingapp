@@ -16,6 +16,7 @@ export async function checkBookingSlotConflict(
   time?: string
 ): Promise<boolean> {
   try {
+    if (!maidId || !date) return false;
     const ref = collection(db, 'bookings');
     const q = query(
       ref,

@@ -22,14 +22,18 @@ export async function fetchUserNotifications(userId: string): Promise<Notificati
 }
 
 /**
- * READ REAL-TIME: Subscribe to user notifications
+ * READ REAL-TIME: Subscribe to user notifications (supports admin inbox)
  */
 export function subscribeToUserNotifications(
   userId: string,
-  callback: (notifications: Notification[]) => void
+  callback: (notifications: Notification[]) => void,
+  isAdmin = false
 ): Unsubscribe {
   const ref = collection(db, 'notifications');
-  const q = query(ref, where('userId', '==', userId));
+  const q = isAdmin && userId !== 'admin'
+    ? query(ref, where('userId', 'in', [userId, 'admin']))
+    : query(ref, where('userId', '==', userId));
+
   return onSnapshot(q, (snap) => {
     const list = snap.docs.map(d => d.data() as Notification);
     // Sort newest first
@@ -38,6 +42,33 @@ export function subscribeToUserNotifications(
   }, (err) => {
     console.warn('Notifications subscription error:', err);
     callback([]);
+  });
+}
+
+/**
+ * CREATE: Notify Admins of a new Customer or Maid registration requiring approval
+ */
+export async function notifyAdminsNewRegistration(payload: {
+  id: string;
+  name: string;
+  role: 'customer' | 'maid';
+  phone?: string;
+  email?: string;
+}): Promise<boolean> {
+  // Only Maid applications require admin approval review notifications
+  if (payload.role !== 'maid') {
+    return true;
+  }
+  return sendAppNotification({
+    userId: 'admin',
+    title: 'New Maid Application 🧹',
+    message: `${payload.name}${payload.phone ? ` (${payload.phone})` : ''} registered and is awaiting admin approval.`,
+    type: 'maid',
+    data: {
+      link: `/admin/maids/${payload.id}`,
+      targetId: payload.id,
+      targetRole: 'maid',
+    },
   });
 }
 
