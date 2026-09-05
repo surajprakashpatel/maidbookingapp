@@ -24,12 +24,27 @@ service cloud.firestore {
     match /users/{userId} {
       // Authenticated users can read all user profiles (needed for booking info display)
       allow read: if isAuthenticated();
-      // Allow newly authenticated user to create THEIR OWN profile doc only or Admin can create
-      allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      // User can update their own profile, but cannot elevate role unless admin
+      // Allow newly authenticated user to create THEIR OWN profile doc only or Admin can create.
+      // Customers are auto-approved upon registration/profile completion; maids start as pending/under_review.
+      allow create: if isAuthenticated() && (
+        isAdmin() || (
+          request.auth.uid == userId &&
+          (!('approvalStatus' in request.resource.data) ||
+           (request.resource.data.role == 'customer' && request.resource.data.approvalStatus in ['approved', 'pending', 'under_review']) ||
+           (request.resource.data.role != 'customer' && request.resource.data.approvalStatus in ['pending', 'under_review']))
+        )
+      );
+      // User can update their own profile:
+      // - Cannot alter role unless admin
+      // - Customers can set/maintain approved status
+      // - Non-admin maids cannot approve themselves
       allow update: if isAdmin() || (
         isOwner(userId) &&
-        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) || request.resource.data.role == resource.data.role)
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) ||
+         request.resource.data.role == resource.data.role) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['approvalStatus']) ||
+         request.resource.data.approvalStatus == resource.data.approvalStatus ||
+         (resource.data.role == 'customer' && request.resource.data.approvalStatus == 'approved'))
       );
       // User can delete their own account or admin can delete
       allow delete: if isOwner(userId) || isAdmin();
@@ -38,8 +53,17 @@ service cloud.firestore {
     // 2. Customers collection
     match /customers/{customerId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && (request.auth.uid == customerId || isAdmin());
-      allow update: if isOwner(customerId) || isAdmin();
+      allow create: if isAuthenticated() && (
+        isAdmin() || (
+          request.auth.uid == customerId &&
+          (!('approvalStatus' in request.resource.data) || request.resource.data.approvalStatus in ['approved', 'pending', 'under_review'])
+        )
+      );
+      allow update: if isAdmin() || (
+        isOwner(customerId) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['approvalStatus']) ||
+         request.resource.data.approvalStatus in ['approved', resource.data.approvalStatus])
+      );
       allow delete: if isOwner(customerId) || isAdmin();
     }
 
@@ -48,9 +72,9 @@ service cloud.firestore {
       // Approved maids are publicly visible for browsing; full access for maid owner or admin
       allow read: if true;
       
-      // Maid can register their own record with status under_review
+      // Maid can register their own record with status under_review or pending
       allow create: if isAuthenticated() && (
-        request.resource.data.approvalStatus == 'under_review' || isAdmin()
+        request.resource.data.approvalStatus in ['under_review', 'pending'] || isAdmin()
       );
       
       // Maid can update non-security fields, Admin can update anything, Authenticated users can update rating aggregates

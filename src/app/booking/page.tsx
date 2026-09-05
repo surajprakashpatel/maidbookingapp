@@ -282,20 +282,20 @@ function BookingWizard() {
                   <h2 className="text-base font-bold text-[var(--text-primary)]">Service Frequency & Duration</h2>
                   <p className="text-xs text-[var(--text-secondary)]">Choose billing type and duration</p>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                   {(['hourly', 'daily', 'monthly'] as const).map(type => (
                     <button
                       key={type}
                       type="button"
                       onClick={() => setPricingType(type)}
-                      className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                      className={`p-2 sm:p-3 rounded-xl border text-center transition-all cursor-pointer ${
                         pricingType === type
                           ? 'border-[var(--primary-600)] bg-[var(--primary-50)] text-[var(--primary-700)] font-bold'
                           : 'border-[var(--border)] bg-white text-[var(--text-secondary)]'
                       }`}
                     >
-                      <div className="text-xs capitalize">{type}</div>
-                      <div className="text-sm font-extrabold mt-1">
+                      <div className="text-[11px] sm:text-xs capitalize">{type}</div>
+                      <div className="text-xs sm:text-sm font-extrabold mt-0.5 sm:mt-1">
                         {type === 'monthly' ? formatINR(maid.monthlyPrice || 18000)
                          : type === 'daily' ? formatINR(maid.dailyPrice || 800)
                          : formatINR(maid.hourlyPrice || 150)}
@@ -370,7 +370,7 @@ function BookingWizard() {
                   <div className="flex justify-between"><span className="text-[var(--text-muted)]">Maid</span><span className="font-bold text-[var(--text-primary)]">{maid.name}</span></div>
                   <div className="flex justify-between"><span className="text-[var(--text-muted)]">Service</span><span className="font-bold text-[var(--text-primary)]">{selectedService}</span></div>
                   <div className="flex justify-between"><span className="text-[var(--text-muted)]">Date & Time</span><span className="font-semibold text-[var(--text-primary)]">{selectedDate} @ {selectedTime}</span></div>
-                  <div className="flex justify-between"><span className="text-[var(--text-muted)]">Address</span><span className="font-semibold text-[var(--text-primary)] truncate max-w-[180px]">{address}, {area}</span></div>
+                  <div className="flex justify-between"><span className="text-[var(--text-muted)]">Address</span><span className="font-semibold text-[var(--text-primary)] truncate max-w-[170px] sm:max-w-xs md:max-w-md lg:max-w-lg">{address}, {area}</span></div>
                 </div>
 
                 <div className="space-y-1.5 pt-1 text-xs">

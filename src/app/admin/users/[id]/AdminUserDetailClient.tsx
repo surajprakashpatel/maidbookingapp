@@ -3,18 +3,20 @@
 import { useState, useEffect, use } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
-import { subscribeToUserById, updateCustomerStatus, deleteUser } from '@/lib/services/userService';
+import { subscribeToUserById, updateCustomerStatus, deleteUser, updateCustomerApprovalStatus } from '@/lib/services/userService';
 import { Customer } from '@/lib/types';
 import { useApp } from '@/lib/app-context';
+import { getApprovalStatusLabel, getApprovalStatusClass } from '@/lib/utils';
 import {
   ArrowLeft, MapPin,
-  ShieldAlert, CheckCircle, XCircle, Loader, BookOpen, Trash2
+  ShieldAlert, CheckCircle, XCircle, Loader, BookOpen, Trash2, Clock, ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -31,6 +33,8 @@ export default function AdminUserDetailClient({ params }: PageProps) {
   const [updating, setUpdating] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -41,6 +45,34 @@ export default function AdminUserDetailClient({ params }: PageProps) {
     });
     return () => unsub();
   }, [id]);
+
+  const handleApprove = async () => {
+    if (!customer) return;
+    setUpdating(true);
+    const success = await updateCustomerApprovalStatus(customer.id, 'approved');
+    if (success) {
+      setCustomer(prev => prev ? { ...prev, approvalStatus: 'approved', status: 'active' } : null);
+      showToast('success', 'Customer Approved! 🎉', `${customer.name}'s account is now approved and active.`);
+    } else {
+      showToast('error', 'Action Failed', 'Could not update approval status.');
+    }
+    setUpdating(false);
+  };
+
+  const handleReject = async () => {
+    if (!customer) return;
+    setUpdating(true);
+    const success = await updateCustomerApprovalStatus(customer.id, 'rejected', rejectionReason.trim() || 'Declined by Administrator');
+    if (success) {
+      setCustomer(prev => prev ? { ...prev, approvalStatus: 'rejected', rejectionReason: rejectionReason.trim() } : null);
+      showToast('warning', 'Customer Rejected', `${customer.name}'s registration has been rejected.`);
+      setShowRejectModal(false);
+      setRejectionReason('');
+    } else {
+      showToast('error', 'Action Failed', 'Could not update approval status.');
+    }
+    setUpdating(false);
+  };
 
   const handleDeleteCustomer = async () => {
     if (!customer) return;
@@ -102,6 +134,37 @@ export default function AdminUserDetailClient({ params }: PageProps) {
         <Link href="/admin/users" className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--primary-600)] hover:underline mb-1">
           <ArrowLeft className="size-4" /> Back to Customer List
         </Link>
+
+        {/* Status Banner */}
+        <div className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
+          customer.approvalStatus === 'approved'
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+            : customer.approvalStatus === 'rejected'
+            ? 'bg-red-50 border-red-200 text-red-900'
+            : 'bg-amber-50 border-amber-200 text-amber-900'
+        }`}>
+          <div className="flex items-center gap-2.5">
+            {customer.approvalStatus === 'approved' ? (
+              <ShieldCheck className="size-5 text-emerald-600 shrink-0" />
+            ) : customer.approvalStatus === 'rejected' ? (
+              <XCircle className="size-5 text-red-600 shrink-0" />
+            ) : (
+              <Clock className="size-5 text-amber-600 shrink-0" />
+            )}
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider opacity-70">Approval Status</div>
+              <div className="text-sm font-extrabold capitalize">
+                {getApprovalStatusLabel(customer.approvalStatus || 'pending')}
+              </div>
+              {customer.rejectionReason && (
+                <div className="text-[11px] text-red-700 mt-0.5">Reason: {customer.rejectionReason}</div>
+              )}
+            </div>
+          </div>
+          <span className={getApprovalStatusClass(customer.approvalStatus || 'pending')}>
+            {customer.approvalStatus || 'pending'}
+          </span>
+        </div>
 
         {/* Header Profile Card */}
         <Card className="p-4 border-[var(--border)] bg-white shadow-xs">
@@ -171,6 +234,29 @@ export default function AdminUserDetailClient({ params }: PageProps) {
             <div className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-2">
               <ShieldAlert className="size-4 text-[var(--error-600)]" /> Administrative Actions
             </div>
+
+            {/* Approval Controls */}
+            {customer.approvalStatus !== 'approved' && (
+              <Button
+                onClick={handleApprove}
+                disabled={updating}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
+              >
+                <CheckCircle className="size-4" /> Approve Customer Account
+              </Button>
+            )}
+
+            {customer.approvalStatus !== 'rejected' && (
+              <Button
+                onClick={() => setShowRejectModal(true)}
+                disabled={updating}
+                variant="outline"
+                className="w-full text-amber-700 border-amber-300 hover:bg-amber-50 gap-2 font-bold"
+              >
+                <XCircle className="size-4" /> Reject Customer Account
+              </Button>
+            )}
+
             <Button
               onClick={handleToggleStatus}
               disabled={updating}
@@ -189,6 +275,36 @@ export default function AdminUserDetailClient({ params }: PageProps) {
             </Button>
           </div>
         </Card>
+
+        {/* Reject Modal */}
+        <Dialog open={showRejectModal} onOpenChange={setShowRejectModal}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-amber-700 flex items-center gap-2">
+                <XCircle className="size-5" /> Reject Customer
+              </DialogTitle>
+              <DialogDescription className="text-xs pt-2">
+                Provide a reason for rejecting <strong>{customer.name}</strong>&apos;s application (visible to the customer):
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2">
+              <Input
+                placeholder="e.g., Incomplete address or phone verification required"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+            <DialogFooter className="flex gap-2 sm:justify-end pt-2">
+              <Button variant="outline" size="sm" onClick={() => setShowRejectModal(false)} disabled={updating}>
+                Cancel
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handleReject} disabled={updating}>
+                {updating ? <Loader className="size-4 animate-spin" /> : 'Confirm Rejection'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Delete Confirmation Dialog */}
         <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>

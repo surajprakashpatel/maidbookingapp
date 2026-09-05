@@ -12,6 +12,9 @@ import { DataTable, Column } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
+
 const APPROVAL_TABS: { label: string; status: ApprovalStatus | 'all' }[] = [
   { label: 'All', status: 'all' },
   { label: 'Pending', status: 'under_review' },
@@ -19,9 +22,11 @@ const APPROVAL_TABS: { label: string; status: ApprovalStatus | 'all' }[] = [
   { label: 'Rejected', status: 'rejected' },
 ];
 
-export default function AdminMaidsPage() {
+function MaidsTableContent() {
   const { showToast } = useApp();
-  const [activeStatus, setActiveStatus] = useState<ApprovalStatus | 'all'>('all');
+  const searchParams = useSearchParams();
+  const initialStatus = (searchParams.get('status') as ApprovalStatus) || 'all';
+  const [activeStatus, setActiveStatus] = useState<ApprovalStatus | 'all'>(initialStatus);
   const [maids, setMaids] = useState<Maid[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -37,8 +42,11 @@ export default function AdminMaidsPage() {
 
   const filtered = useMemo(() => {
     return maids.filter(m => {
-      if (activeStatus !== 'all' && m.approvalStatus !== activeStatus) return false;
-      return true;
+      if (activeStatus === 'all') return true;
+      if (activeStatus === 'under_review' || activeStatus === 'pending') {
+        return m.approvalStatus === 'under_review' || m.approvalStatus === 'pending';
+      }
+      return m.approvalStatus === activeStatus;
     });
   }, [maids, activeStatus]);
 
@@ -163,46 +171,61 @@ export default function AdminMaidsPage() {
   ];
 
   return (
-    <AppShell role="admin" headerProps={{ title: 'Manage Maids', showNotifications: false }}>
-      <div className="animate-fade-in space-y-4">
-        {/* Status tabs */}
-        <div className="flex items-center gap-1 overflow-x-auto p-1 bg-[var(--gray-100)] rounded-xl max-w-fit">
-          {APPROVAL_TABS.map((tab) => {
-            const count = maids.filter(m => tab.status === 'all' || m.approvalStatus === tab.status).length;
-            return (
-              <button
-                key={tab.status}
-                type="button"
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                  activeStatus === tab.status
-                    ? 'bg-white text-[var(--primary-600)] shadow-xs'
-                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                }`}
-                onClick={() => setActiveStatus(tab.status)}
-              >
-                {tab.label} ({count})
-              </button>
-            );
-          })}
-        </div>
+    <div className="animate-fade-in space-y-4">
+      {/* Status tabs */}
+      <div className="flex items-center gap-1 overflow-x-auto p-1 bg-[var(--gray-100)] rounded-xl max-w-fit">
+        {APPROVAL_TABS.map((tab) => {
+          const count = maids.filter(m => {
+            if (tab.status === 'all') return true;
+            if (tab.status === 'under_review') {
+              return m.approvalStatus === 'under_review' || m.approvalStatus === 'pending';
+            }
+            return m.approvalStatus === tab.status;
+          }).length;
 
-        {/* Maids Data Table */}
-        {loading ? (
-          <div className="p-8 text-center text-[var(--text-secondary)] text-sm">
-            Loading maid records...
-          </div>
-        ) : (
-          <DataTable
-            data={filtered}
-            columns={columns}
-            searchPlaceholder="Search by maid name, phone or area..."
-            searchKey={(row) => `${row.name} ${row.phone} ${row.area}`}
-            emptyStateText="No maids match the selected status filter."
-          />
-        )}
-
-        <div className="h-6" />
+          return (
+            <button
+              key={tab.status}
+              type="button"
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                activeStatus === tab.status
+                  ? 'bg-white text-[var(--primary-600)] shadow-xs'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+              onClick={() => setActiveStatus(tab.status)}
+            >
+              {tab.label} ({count})
+            </button>
+          );
+        })}
       </div>
+
+      {/* Maids Data Table */}
+      {loading ? (
+        <div className="p-8 text-center text-[var(--text-secondary)] text-sm">
+          Loading maid records...
+        </div>
+      ) : (
+        <DataTable
+          data={filtered}
+          columns={columns}
+          searchPlaceholder="Search by maid name, phone or area..."
+          searchKey={(row) => `${row.name} ${row.phone} ${row.area}`}
+          emptyStateText="No maids match the selected status filter."
+        />
+      )}
+
+      <div className="h-6" />
+    </div>
+  );
+}
+
+export default function AdminMaidsPage() {
+  return (
+    <AppShell role="admin" headerProps={{ title: 'Manage Maids', showNotifications: false }}>
+      <Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Loading maids...</div>}>
+        <MaidsTableContent />
+      </Suspense>
     </AppShell>
   );
 }

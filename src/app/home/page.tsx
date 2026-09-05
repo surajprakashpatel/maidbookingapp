@@ -104,7 +104,7 @@ export default function CustomerHomePage() {
               </button>
             )}
           </div>
-          <div className="grid grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 min-[420px]:grid-cols-4 sm:grid-cols-4 gap-2.5">
             {categories.map(cat => (
               <button
                 key={cat.id}
@@ -133,7 +133,7 @@ export default function CustomerHomePage() {
           </div>
 
           {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
               {[1, 2, 3, 4].map(i => (
                 <MaidCardSkeleton key={i} />
               ))}
@@ -160,7 +160,7 @@ export default function CustomerHomePage() {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
               {filteredMaids.map(maid => (
                 <MaidCard key={maid.id} maid={maid} />
               ))}

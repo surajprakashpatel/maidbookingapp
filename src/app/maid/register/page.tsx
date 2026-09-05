@@ -37,7 +37,7 @@ const INITIAL_FORM: MaidRegistrationForm = {
 };
 
 export default function MaidRegisterPage() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { showToast } = useApp();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<MaidRegistrationForm>(INITIAL_FORM);
@@ -55,6 +55,7 @@ export default function MaidRegisterPage() {
         name: prev.name || user.name || '',
         phone: prev.phone || user.phone || '',
         email: prev.email || user.email || '',
+        profilePhotoPreview: prev.profilePhotoPreview || user.photoUrl || '',
         city: prev.city || user.city || user.location || 'Bhilai',
         location: prev.location || user.location || 'Bhilai',
         area: prev.area || user.area || '',
@@ -144,6 +145,18 @@ export default function MaidRegisterPage() {
       const userId = user?.id || '';
       const res = await submitMaidRegistration(form, userId);
       if (res.success) {
+        updateUser({
+          role: 'maid',
+          profileCompleted: true,
+          approvalStatus: 'under_review',
+          name: form.name,
+          phone: form.phone,
+          email: form.email || undefined,
+          city: form.city || form.location,
+          location: form.location,
+          area: form.area,
+          address: form.address,
+        });
         setSubmitted(true);
         showToast('success', 'Profile submitted!', 'Your registration is under review.');
       } else {

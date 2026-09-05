@@ -64,13 +64,13 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-screen bg-[var(--background)] flex flex-col">
       {/* Top Header */}
-      <div className="bg-white border-b border-[var(--border)] px-5 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <BrandLogo size="md" />
-          <Badge variant="destructive" className="ml-2 text-[10px]">Admin Portal</Badge>
+      <div className="bg-white border-b border-[var(--border)] px-3 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <BrandLogo size="sm" />
+          <Badge variant="destructive" className="text-[10px] shrink-0">Admin</Badge>
         </div>
-        <Link href="/login">
-          <Button variant="ghost" size="sm">Customer Login</Button>
+        <Link href="/login" className="shrink-0">
+          <Button variant="ghost" size="sm" className="text-xs px-2.5">Customer Login</Button>
         </Link>
       </div>
 

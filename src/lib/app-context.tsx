@@ -57,11 +57,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setNotifications([]);
       return;
     }
+    const isAdmin = user.role === 'admin';
     const unsub = subscribeToUserNotifications(user.id, (liveNotifs) => {
       setNotifications(liveNotifs);
-    });
+    }, isAdmin);
     return () => unsub();
-  }, [user?.id]);
+  }, [user?.id, user?.role]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 

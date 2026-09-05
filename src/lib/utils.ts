@@ -131,6 +131,7 @@ export function getPaymentStatusClass(status: PaymentStatus): string {
 export function getApprovalStatusLabel(status: ApprovalStatus): string {
   const map: Record<ApprovalStatus, string> = {
     draft: 'Draft',
+    pending: 'Pending',
     under_review: 'Under Review',
     approved: 'Approved',
     rejected: 'Rejected',
@@ -142,12 +143,17 @@ export function getApprovalStatusLabel(status: ApprovalStatus): string {
 export function getApprovalStatusClass(status: ApprovalStatus): string {
   const map: Record<ApprovalStatus, string> = {
     draft: 'badge-neutral',
+    pending: 'badge-review',
     under_review: 'badge-review',
     approved: 'badge-approved',
     rejected: 'badge-rejected',
     suspended: 'badge-suspended',
   };
   return `badge ${map[status] ?? 'badge-neutral'}`;
+}
+
+export function isPendingApproval(status?: ApprovalStatus): boolean {
+  return status === 'pending' || status === 'under_review';
 }
 
 export function getVerificationStatusLabel(status: VerificationStatus): string {

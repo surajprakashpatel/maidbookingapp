@@ -56,7 +56,9 @@ ui-debug.log*
 .idea/
 *.swp
 *.swo
+.playwright-mcp/
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+

@@ -10,6 +10,7 @@ import {
   addCity,
   updateCity,
   toggleCityOperational,
+  deleteCity,
   addLocality,
   updateLocality,
   toggleLocalityOperational,
@@ -233,6 +234,16 @@ export default function AdminLocationsPage() {
     }
   };
 
+  const handleDeleteCity = async (city: CityConfig) => {
+    if (!confirm(`Are you sure you want to delete city "${city.name}"? This action cannot be undone.`)) return;
+    const res = await deleteCity(city.id);
+    if (res.success) {
+      showToast('success', 'City Deleted', `"${city.name}" was removed.`);
+    } else {
+      showToast('error', 'Delete Failed', res.error || 'Could not delete city.');
+    }
+  };
+
   // ----------------------------------------------------------------------
   // LOCALITY HANDLERS
   // ----------------------------------------------------------------------
@@ -371,9 +382,9 @@ export default function AdminLocationsPage() {
         </div>
 
         {/* Metrics Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3.5">
           <Card className="border-slate-200/80 shadow-xs">
-            <CardContent className="p-4 flex items-center justify-between">
+            <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-xs font-semibold text-slate-500">Operational Cities</p>
                 <h3 className="text-xl font-extrabold text-slate-900">
@@ -387,7 +398,7 @@ export default function AdminLocationsPage() {
           </Card>
 
           <Card className="border-slate-200/80 shadow-xs">
-            <CardContent className="p-4 flex items-center justify-between">
+            <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-xs font-semibold text-slate-500">Operational Localities</p>
                 <h3 className="text-xl font-extrabold text-slate-900">
@@ -401,7 +412,7 @@ export default function AdminLocationsPage() {
           </Card>
 
           <Card className="border-slate-200/80 shadow-xs">
-            <CardContent className="p-4 flex items-center justify-between">
+            <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-xs font-semibold text-slate-500">Disabled Cities</p>
                 <h3 className="text-xl font-extrabold text-amber-600">
@@ -415,7 +426,7 @@ export default function AdminLocationsPage() {
           </Card>
 
           <Card className="border-slate-200/80 shadow-xs">
-            <CardContent className="p-4 flex items-center justify-between">
+            <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-xs font-semibold text-slate-500">Custom Requests</p>
                 <h3 className="text-xl font-extrabold text-purple-600">
@@ -564,8 +575,21 @@ export default function AdminLocationsPage() {
                           size="sm"
                           onClick={() => handleOpenEditCity(city)}
                           className="px-2.5 text-slate-500 hover:text-slate-900 rounded-xl"
+                          title="Edit City"
                         >
                           <Edit2 className="size-4" />
+                        </Button>
+
+                        {/* Delete */}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteCity(city)}
+                          className="px-2.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl"
+                          title="Delete City"
+                        >
+                          <Trash2 className="size-4" />
                         </Button>
                       </div>
                     </CardContent>

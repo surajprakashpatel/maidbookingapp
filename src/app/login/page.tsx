@@ -41,6 +41,11 @@ export function LoginForm() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [approvalNotice, setApprovalNotice] = useState<{
+    status: 'pending' | 'rejected';
+    title: string;
+    message: string;
+  } | null>(null);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -59,35 +64,95 @@ export function LoginForm() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
+    setApprovalNotice(null);
 
     const result = await login(role, emailInput.trim(), password);
     if (result.success) {
-      showToast('success', 'Welcome back!', `Logged in successfully`);
+      const targetRole = result.role || role;
       if (result.isNewUser) {
-        router.push('/profile/create');
-      } else {
-        const targetRole = result.role || role;
-        if (targetRole === 'maid') router.push('/maid/dashboard');
-        else if (targetRole === 'admin') router.push('/admin');
-        else router.push('/home');
+        if (targetRole === 'maid') {
+          router.push('/maid/register');
+        } else {
+          router.push('/profile/create');
+        }
+        return;
       }
+      if (targetRole === 'admin') {
+        showToast('success', 'Welcome Admin', 'Logged in as Administrator');
+        router.push('/admin');
+        return;
+      }
+
+      if (targetRole === 'maid' && (result.approvalStatus === 'pending' || result.approvalStatus === 'under_review')) {
+        showToast('warning', 'Approval Pending', 'Your maid partner account is waiting for administrator approval.');
+        setApprovalNotice({
+          status: 'pending',
+          title: 'Waiting for Admin Approval ⏳',
+          message: 'Your maid partner account registration has been submitted and is currently awaiting administrator review. Once approved, you will be able to access all partner features.',
+        });
+        return;
+      }
+
+      if (result.approvalStatus === 'rejected') {
+        showToast('error', 'Registration Not Approved', result.rejectionReason || 'Application was not approved.');
+        setApprovalNotice({
+          status: 'rejected',
+          title: 'Registration Not Approved ❌',
+          message: result.rejectionReason || 'Your registration could not be approved at this time. Please contact support.',
+        });
+        return;
+      }
+
+      showToast('success', 'Welcome back!', `Logged in successfully`);
+      if (targetRole === 'maid') router.push('/maid/dashboard');
+      else router.push('/home');
     } else {
       showToast('error', 'Login failed', result.error);
     }
   };
 
   const handleGoogle = async () => {
+    setApprovalNotice(null);
     const result = await loginWithGoogle(role);
     if (result.success) {
-      showToast('success', 'Logged in with Google!');
+      const targetRole = result.role || role;
       if (result.isNewUser) {
-        router.push('/profile/create');
-      } else {
-        const targetRole = result.role || role;
-        if (targetRole === 'maid') router.push('/maid/dashboard');
-        else if (targetRole === 'admin') router.push('/admin');
-        else router.push('/home');
+        if (targetRole === 'maid') {
+          router.push('/maid/register');
+        } else {
+          router.push('/profile/create');
+        }
+        return;
       }
+      if (targetRole === 'admin') {
+        showToast('success', 'Welcome Admin', 'Logged in as Administrator');
+        router.push('/admin');
+        return;
+      }
+
+      if (targetRole === 'maid' && (result.approvalStatus === 'pending' || result.approvalStatus === 'under_review')) {
+        showToast('warning', 'Approval Pending', 'Your maid partner account is waiting for administrator approval.');
+        setApprovalNotice({
+          status: 'pending',
+          title: 'Waiting for Admin Approval ⏳',
+          message: 'Your Google maid account registration is waiting for administrator review. Once approved, you will be granted access.',
+        });
+        return;
+      }
+
+      if (result.approvalStatus === 'rejected') {
+        showToast('error', 'Registration Not Approved', result.rejectionReason || 'Application was not approved.');
+        setApprovalNotice({
+          status: 'rejected',
+          title: 'Registration Not Approved ❌',
+          message: result.rejectionReason || 'Your registration could not be approved at this time. Please contact support.',
+        });
+        return;
+      }
+
+      showToast('success', 'Logged in with Google!');
+      if (targetRole === 'maid') router.push('/maid/dashboard');
+      else router.push('/home');
     }
   };
 
@@ -119,6 +184,31 @@ export function LoginForm() {
               Sign in to your MaidEasy account
             </p>
           </div>
+
+          {/* Approval Notice Banner if pending or rejected */}
+          {approvalNotice && (
+            <div className={`p-4 rounded-2xl border text-left space-y-2 animate-fade-in ${
+              approvalNotice.status === 'pending'
+                ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                : 'bg-red-50/80 border-red-200 text-red-900'
+            }`}>
+              <div className="font-bold text-sm">{approvalNotice.title}</div>
+              <p className="text-xs leading-relaxed opacity-90">{approvalNotice.message}</p>
+              {approvalNotice.status === 'pending' && (
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 pt-1">
+                  <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
+                  <span>Your account will activate immediately once approved.</span>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setApprovalNotice(null)}
+                className="text-xs font-bold underline cursor-pointer pt-1 block"
+              >
+                Dismiss Notice
+              </button>
+            </div>
+          )}
 
           {/* Clean Flat Role Navigation Tabs */}
           <div className="flex border-b border-slate-200">

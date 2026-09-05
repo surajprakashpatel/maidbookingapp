@@ -160,6 +160,8 @@ function getSidebarSections(role: UserRole): SidebarSection[] {
   ];
 }
 
+import { Sheet, SheetContent } from '@/components/ui/sheet';
+
 interface SidebarProps {
   role: UserRole;
   userName: string;
@@ -167,7 +169,21 @@ interface SidebarProps {
   onLogout: () => void;
 }
 
-export function Sidebar({ role, userName, userPhoto, onLogout }: SidebarProps) {
+export interface SidebarContentProps {
+  role: UserRole;
+  userName: string;
+  userPhoto?: string;
+  onLogout: () => void;
+  onItemClick?: () => void;
+}
+
+export function SidebarContent({
+  role,
+  userName,
+  userPhoto,
+  onLogout,
+  onItemClick,
+}: SidebarContentProps) {
   const pathname = usePathname();
   const sections = getSidebarSections(role);
 
@@ -175,7 +191,7 @@ export function Sidebar({ role, userName, userPhoto, onLogout }: SidebarProps) {
   const roleColor = role === 'admin' ? 'var(--error-600)' : role === 'maid' ? 'var(--success-600)' : 'var(--primary-600)';
 
   return (
-    <aside className="sidebar" role="navigation" aria-label="Sidebar navigation">
+    <div className="flex flex-col h-full bg-white">
       {/* Logo */}
       <div className="sidebar-logo">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -200,6 +216,7 @@ export function Sidebar({ role, userName, userPhoto, onLogout }: SidebarProps) {
                 <Link
                   key={href}
                   href={href}
+                  onClick={onItemClick}
                   className={`sidebar-item ${active ? 'active' : ''}`}
                   aria-current={active ? 'page' : undefined}
                 >
@@ -229,11 +246,11 @@ export function Sidebar({ role, userName, userPhoto, onLogout }: SidebarProps) {
             fontWeight: 700,
             color: 'var(--primary-600)',
           }}>
-            {!userPhoto && userName.charAt(0)}
+            {!userPhoto && (userName ? userName.charAt(0) : 'U')}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {userName}
+              {userName || 'User'}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{roleLabel}</div>
           </div>
@@ -246,6 +263,52 @@ export function Sidebar({ role, userName, userPhoto, onLogout }: SidebarProps) {
           Sign Out
         </button>
       </div>
+    </div>
+  );
+}
+
+export function Sidebar({ role, userName, userPhoto, onLogout }: SidebarProps) {
+  return (
+    <aside className="sidebar" role="navigation" aria-label="Sidebar navigation">
+      <SidebarContent
+        role={role}
+        userName={userName}
+        userPhoto={userPhoto}
+        onLogout={onLogout}
+      />
     </aside>
+  );
+}
+
+export function MobileSidebarDrawer({
+  open,
+  onOpenChange,
+  role,
+  userName,
+  userPhoto,
+  onLogout,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  role: UserRole;
+  userName: string;
+  userPhoto?: string;
+  onLogout: () => void;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="left" className="p-0 w-[280px] max-w-[85vw] flex flex-col h-full bg-white border-r border-[var(--border-light)]">
+        <SidebarContent
+          role={role}
+          userName={userName}
+          userPhoto={userPhoto}
+          onLogout={() => {
+            onOpenChange(false);
+            onLogout();
+          }}
+          onItemClick={() => onOpenChange(false)}
+        />
+      </SheetContent>
+    </Sheet>
   );
 }
